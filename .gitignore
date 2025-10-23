@@ -39,3 +39,11 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+secrets/
+
+/src/generated/prisma
+
+supabase/
+
+.trae/
