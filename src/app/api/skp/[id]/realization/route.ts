@@ -17,9 +17,9 @@ export async function POST(
     }
 
     const body = await request.json()
-    const { realisasi, progress_percentage, keterangan, bukti_files } = body
+    const { realization, progress_percentage, notes, evidence_files } = body
 
-    if (!realisasi || progress_percentage === undefined) {
+    if (!realization || progress_percentage === undefined) {
       return NextResponse.json(
         { error: "Missing required fields" },
         { status: 400 }
@@ -41,17 +41,17 @@ export async function POST(
       )
     }
 
-    const realization = await prisma.skpRealization.create({
+    const realizationRecord = await prisma.skpRealization.create({
       data: {
         skp_item_id: id,
-        realisasi,
+        realization,
         progress_percentage,
-        keterangan,
-        bukti_files: bukti_files || []
+        notes,
+        evidence_files: evidence_files || []
       }
     })
 
-    return NextResponse.json(realization, { status: 201 })
+    return NextResponse.json(realizationRecord, { status: 201 })
   } catch (error) {
     console.error("Error creating SKP realization:", error)
     return NextResponse.json(

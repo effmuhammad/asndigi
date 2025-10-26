@@ -17,7 +17,7 @@ export async function PUT(
 
     const { id } = await params
     const body = await request.json()
-    const { indikator, rencana_aksi, target, satuan, bobot } = body
+    const { indicator, action_plan, target, unit, weight } = body
 
     // Verify the SKP item belongs to the current user
     const existingItem = await prisma.skpItem.findFirst({
@@ -37,11 +37,11 @@ export async function PUT(
     const updatedItem = await prisma.skpItem.update({
       where: { id },
       data: {
-        indikator,
-        rencana_aksi,
+        indicator,
+        action_plan,
         target,
-        satuan,
-        bobot
+        unit,
+        weight
       }
     })
 

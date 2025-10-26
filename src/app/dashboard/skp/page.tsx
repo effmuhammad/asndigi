@@ -20,15 +20,15 @@ import { FileUpload } from "@/components/ui/file-upload"
 interface SkpItem {
   id: string
   no: number
-  indikator: string
-  rencana_aksi: string
+  indicator: string
+  action_plan: string
   target: string
-  satuan: string
-  bobot: number
-  realisasi?: string
+  unit: string
+  weight: number
+  realization?: string
   progress_percentage: number
-  bukti_files: string[]
-  keterangan?: string
+  evidence_files: string[]
+  notes?: string
   feedback?: string
 }
 
@@ -43,11 +43,11 @@ export default function SkpPage() {
   const [selectedSkp, setSelectedSkp] = useState<SkpItem | null>(null)
   const [uploadedFiles, setUploadedFiles] = useState<any[]>([])
   const [formData, setFormData] = useState({
-    indikator: "",
-    rencana_aksi: "",
+    indicator: "",
+    action_plan: "",
     target: "",
-    satuan: "",
-    bobot: 0
+    unit: "",
+    weight: 0
   })
 
   // Load SKP data
@@ -69,43 +69,43 @@ export default function SkpPage() {
           {
             id: "1",
             no: 1,
-            indikator: "Meningkatkan kualitas pelayanan publik",
-            rencana_aksi: "Melakukan pelatihan customer service dan implementasi sistem antrian digital",
+            indicator: "Meningkatkan kualitas pelayanan publik",
+            action_plan: "Melakukan pelatihan customer service dan implementasi sistem antrian digital",
             target: "90",
-            satuan: "Persen",
-            bobot: 25,
-            realisasi: "Telah melakukan 3 kali pelatihan dan implementasi sistem antrian di 2 lokasi",
+            unit: "Persen",
+            weight: 25,
+            realization: "Telah melakukan 3 kali pelatihan dan implementasi sistem antrian di 2 lokasi",
             progress_percentage: 85,
-            bukti_files: ["sertifikat-pelatihan.pdf", "laporan-implementasi.pdf"],
-            keterangan: "Progres berjalan sesuai rencana",
+            evidence_files: ["sertifikat-pelatihan.pdf", "laporan-implementasi.pdf"],
+            notes: "Progres berjalan sesuai rencana",
             feedback: "Perlu ditingkatkan lagi untuk mencapai target 90%"
           },
           {
             id: "2",
             no: 2,
-            indikator: "Menyelesaikan laporan keuangan tepat waktu",
-            rencana_aksi: "Membuat jadwal rutin penyusunan laporan dan koordinasi dengan tim keuangan",
+            indicator: "Menyelesaikan laporan keuangan tepat waktu",
+            action_plan: "Membuat jadwal rutin penyusunan laporan dan koordinasi dengan tim keuangan",
             target: "100",
-            satuan: "Persen",
-            bobot: 20,
-            realisasi: "Semua laporan bulanan telah diselesaikan tepat waktu",
+            unit: "Persen",
+            weight: 20,
+            realization: "Semua laporan bulanan telah diselesaikan tepat waktu",
             progress_percentage: 100,
-            bukti_files: ["laporan-jan.pdf", "laporan-feb.pdf", "laporan-mar.pdf"],
-            keterangan: "Target tercapai dengan baik",
+            evidence_files: ["laporan-jan.pdf", "laporan-feb.pdf", "laporan-mar.pdf"],
+            notes: "Target tercapai dengan baik",
             feedback: "Excellent! Pertahankan konsistensi ini"
           },
           {
             id: "3",
             no: 3,
-            indikator: "Mengembangkan sistem informasi internal",
-            rencana_aksi: "Analisis kebutuhan, desain sistem, dan implementasi bertahap",
+            indicator: "Mengembangkan sistem informasi internal",
+            action_plan: "Analisis kebutuhan, desain sistem, dan implementasi bertahap",
             target: "1",
-            satuan: "Sistem",
-            bobot: 30,
-            realisasi: "Tahap analisis dan desain telah selesai, implementasi 60%",
+            unit: "Sistem",
+            weight: 30,
+            realization: "Tahap analisis dan desain telah selesai, implementasi 60%",
             progress_percentage: 60,
-            bukti_files: ["dokumen-analisis.pdf", "desain-sistem.pdf"],
-            keterangan: "Sedang dalam tahap implementasi",
+            evidence_files: ["dokumen-analisis.pdf", "desain-sistem.pdf"],
+            notes: "Sedang dalam tahap implementasi",
             feedback: "Progres baik, pastikan selesai sesuai timeline"
           }
         ]
@@ -161,11 +161,11 @@ export default function SkpPage() {
       setIsDialogOpen(false)
       setEditingItem(null)
       setFormData({
-        indikator: "",
-        rencana_aksi: "",
+        indicator: "",
+        action_plan: "",
         target: "",
-        satuan: "",
-        bobot: 0
+        unit: "",
+        weight: 0
       })
       
       // Reload data
@@ -179,11 +179,11 @@ export default function SkpPage() {
   const handleEdit = (item: SkpItem) => {
     setEditingItem(item)
     setFormData({
-      indikator: item.indikator,
-      rencana_aksi: item.rencana_aksi,
+      indicator: item.indicator,
+      action_plan: item.action_plan,
       target: item.target,
-      satuan: item.satuan,
-      bobot: item.bobot
+      unit: item.unit,
+      weight: item.weight
     })
     setIsDialogOpen(true)
   }
@@ -234,7 +234,7 @@ export default function SkpPage() {
     }
   }
 
-  const totalBobot = skpItems.reduce((sum, item) => sum + item.bobot, 0)
+  const totalBobot = skpItems.reduce((sum, item) => sum + item.weight, 0)
   const averageProgress = skpItems.length > 0 
     ? skpItems.reduce((sum, item) => sum + item.progress_percentage, 0) / skpItems.length 
     : 0
@@ -293,21 +293,21 @@ export default function SkpPage() {
               <form onSubmit={handleSubmit}>
                 <div className="space-y-4">
                   <div>
-                    <Label htmlFor="indikator">Indikator Kinerja</Label>
+                    <Label htmlFor="indicator">Indikator Kinerja</Label>
                     <Input
-                      id="indikator"
-                      value={formData.indikator}
-                      onChange={(e) => setFormData(prev => ({ ...prev, indikator: e.target.value }))}
+                      id="indicator"
+                      value={formData.indicator}
+                      onChange={(e) => setFormData(prev => ({ ...prev, indicator: e.target.value }))}
                       placeholder="Masukkan indikator kinerja"
                       required
                     />
                   </div>
                   <div>
-                    <Label htmlFor="rencana_aksi">Rencana Aksi</Label>
+                    <Label htmlFor="action_plan">Rencana Aksi</Label>
                     <Textarea
-                      id="rencana_aksi"
-                      value={formData.rencana_aksi}
-                      onChange={(e) => setFormData(prev => ({ ...prev, rencana_aksi: e.target.value }))}
+                      id="action_plan"
+                      value={formData.action_plan}
+                      onChange={(e) => setFormData(prev => ({ ...prev, action_plan: e.target.value }))}
                       placeholder="Jelaskan rencana aksi untuk mencapai target"
                       required
                     />
@@ -324,25 +324,25 @@ export default function SkpPage() {
                       />
                     </div>
                     <div>
-                      <Label htmlFor="satuan">Satuan</Label>
+                      <Label htmlFor="unit">Satuan</Label>
                       <Input
-                        id="satuan"
-                        value={formData.satuan}
-                        onChange={(e) => setFormData(prev => ({ ...prev, satuan: e.target.value }))}
+                        id="unit"
+                        value={formData.unit}
+                        onChange={(e) => setFormData(prev => ({ ...prev, unit: e.target.value }))}
                         placeholder="Satuan pengukuran"
                         required
                       />
                     </div>
                   </div>
                   <div>
-                    <Label htmlFor="bobot">Bobot (%)</Label>
+                    <Label htmlFor="weight">Bobot (%)</Label>
                     <Input
-                      id="bobot"
+                      id="weight"
                       type="number"
                       min="1"
                       max="100"
-                      value={formData.bobot}
-                      onChange={(e) => setFormData(prev => ({ ...prev, bobot: Number(e.target.value) }))}
+                      value={formData.weight}
+                      onChange={(e) => setFormData(prev => ({ ...prev, weight: Number(e.target.value) }))}
                       placeholder="Bobot dalam persen"
                       required
                     />
@@ -437,7 +437,7 @@ export default function SkpPage() {
                       <TableCell className="font-medium">{item.no}</TableCell>
                       <TableCell>
                         <div className="max-w-xs">
-                          <p className="font-medium">{item.indikator}</p>
+                          <p className="font-medium">{item.indicator}</p>
                           {item.feedback && (
                             <p className="text-xs text-muted-foreground mt-1">
                               💬 {item.feedback}
@@ -447,16 +447,16 @@ export default function SkpPage() {
                       </TableCell>
                       <TableCell>
                         <div className="max-w-sm text-sm">
-                          {item.rencana_aksi}
+                          {item.action_plan}
                         </div>
                       </TableCell>
                       <TableCell>
                         <Badge variant="outline">
-                          {item.target} {item.satuan}
+                          {item.target} {item.unit}
                         </Badge>
                       </TableCell>
                       <TableCell>
-                        <Badge variant="secondary">{item.bobot}%</Badge>
+                        <Badge variant="secondary">{item.weight}%</Badge>
                       </TableCell>
                       <TableCell>
                         <div className="space-y-2">
@@ -466,9 +466,9 @@ export default function SkpPage() {
                               {item.progress_percentage}%
                             </span>
                           </div>
-                          {item.realisasi && (
+                          {item.realization && (
                             <p className="text-xs text-muted-foreground">
-                              {item.realisasi}
+                              {item.realization}
                             </p>
                           )}
                         </div>

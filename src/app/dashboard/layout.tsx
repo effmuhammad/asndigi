@@ -53,7 +53,7 @@ export default function DashboardLayout({
                   </BreadcrumbItem>
                   <BreadcrumbSeparator className="hidden md:block" />
                   <BreadcrumbItem>
-                    <BreadcrumbPage>ASN Digital</BreadcrumbPage>
+                    <BreadcrumbPage>PRIMA ASN</BreadcrumbPage>
                   </BreadcrumbItem>
                 </BreadcrumbList>
               </Breadcrumb>

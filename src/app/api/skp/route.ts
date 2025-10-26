@@ -55,9 +55,9 @@ export async function POST(request: NextRequest) {
     }
 
     const body = await request.json()
-    const { indikator, rencana_aksi, target, satuan, bobot, year } = body
+    const { indicator, action_plan, target, unit, weight, year } = body
 
-    if (!indikator || !rencana_aksi || !target || !satuan || bobot === undefined) {
+    if (!indicator || !action_plan || !target || !unit || weight === undefined) {
       return NextResponse.json(
         { error: "Missing required fields" },
         { status: 400 }
@@ -81,11 +81,11 @@ export async function POST(request: NextRequest) {
       data: {
         user_id: session.user.id,
         no: nextNo,
-        indikator,
-        rencana_aksi,
+        indicator,
+        action_plan,
         target,
-        satuan,
-        bobot,
+        unit,
+        weight,
         year: year || new Date().getFullYear()
       }
     })

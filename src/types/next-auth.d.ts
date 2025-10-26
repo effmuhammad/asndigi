@@ -8,7 +8,8 @@ declare module "next-auth" {
       name: string
       email: string
       role: string
-      unit_kerja: string
+      work_unit: string
+      position: string
     }
   }
 
@@ -18,7 +19,8 @@ declare module "next-auth" {
     name: string
     email: string
     role: string
-    unit_kerja: string
+    work_unit: string
+    position: string
   }
 }
 
@@ -26,6 +28,7 @@ declare module "next-auth/jwt" {
   interface JWT {
     nip: string
     role: string
-    unit_kerja: string
+    work_unit: string
+    position: string
   }
 }

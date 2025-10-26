@@ -14,21 +14,61 @@ datasource db {
   directUrl = env("DIRECT_URL")
 }
 
+// Enums for predefined values
+enum UserRole {
+  STAFF
+  SUPERVISOR
+  ADMIN
+}
+
+enum EmploymentStatus {
+  PNS
+  PPPK
+}
+
+enum AttendanceStatus {
+  PRESENT
+  LATE
+  EARLY_LEAVE
+  ABSENT
+  LEAVE
+  SICK
+}
+
+enum PeriodType {
+  MONTHLY
+  QUARTERLY
+  YEARLY
+}
+
+enum ReportStatus {
+  DRAFT
+  SUBMITTED
+  APPROVED
+  REJECTED
+}
+
+enum ApprovalStatus {
+  PENDING
+  APPROVED
+  REJECTED
+}
+
 
 model User {
-  id                  String   @id @default(uuid(7))
-  nip                 String   @unique
-  name                String
-  email               String   @unique
-  password            String
-  role                String   @default("pegawai") // pegawai, supervisor, admin
-  unit_kerja          String?
-  jabatan             String?
-  golongan            String?
-  status_kepegawaian  String?  // PNS atau PPPK
-  supervisor_id       String?
-  created_at          DateTime @default(now())
-  updated_at          DateTime @updatedAt
+  id                String           @id @default(uuid(7))
+  nip               String           @unique
+  name              String
+  email             String           @unique
+  password          String
+  role              UserRole         @default(STAFF)
+  work_unit         String?
+  position          String?
+  grade             String?
+  employment_status EmploymentStatus?
+  supervisor_id     String?
+  created_at        DateTime         @default(now())
+  updated_at        DateTime         @updatedAt
 
   // Relations
   supervisor          User?                @relation("UserSupervisor", fields: [supervisor_id], references: [id])
@@ -42,15 +82,15 @@ model User {
 }
 
 model Attendance {
-  id              String    @id @default(uuid(7))
+  id              String           @id @default(uuid(7))
   user_id         String
-  attendance_date DateTime  @db.Date
+  attendance_date DateTime         @db.Date
   check_in        DateTime?
   check_out       DateTime?
-  status          String    @default("hadir") // hadir, terlambat, pulang_cepat, alpha, izin, sakit
+  status          AttendanceStatus @default(PRESENT)
   location_data   Json?
   photo_url       String?
-  created_at      DateTime  @default(now())
+  created_at      DateTime         @default(now())
 
   // Relations
   user User @relation(fields: [user_id], references: [id], onDelete: Cascade)
@@ -61,20 +101,20 @@ model Attendance {
 }
 
 model SkpItem {
-  id           String   @id @default(uuid(7))
-  user_id      String
-  year         Int
-  no           Int
-  indikator    String
-  rencana_aksi String
-  target       String
-  satuan       String?
-  bobot        Decimal? @default(0) @db.Decimal(5, 2)
-  created_at   DateTime @default(now())
-  updated_at   DateTime @updatedAt
+  id          String   @id @default(uuid(7))
+  user_id     String
+  year        Int
+  no          Int
+  indicator   String
+  action_plan String
+  target      String
+  unit        String?
+  weight      Decimal? @default(0) @db.Decimal(5, 2)
+  created_at  DateTime @default(now())
+  updated_at  DateTime @updatedAt
 
   // Relations
-  user           User             @relation(fields: [user_id], references: [id], onDelete: Cascade)
+  user             User             @relation(fields: [user_id], references: [id], onDelete: Cascade)
   skp_realizations SkpRealization[]
 
   @@index([user_id, year])
@@ -84,10 +124,10 @@ model SkpItem {
 model SkpRealization {
   id                  String   @id @default(uuid(7))
   skp_item_id         String
-  realisasi           String?
+  realization         String?
   progress_percentage Decimal? @default(0) @db.Decimal(5, 2)
-  bukti_files         Json     @default("[]")
-  keterangan          String?
+  evidence_files      Json     @default("[]")
+  notes               String?
   created_at          DateTime @default(now())
   updated_at          DateTime @updatedAt
 
@@ -99,17 +139,17 @@ model SkpRealization {
 }
 
 model PerformanceReport {
-  id                 String   @id @default(uuid(7))
+  id                 String       @id @default(uuid(7))
   user_id            String
-  period_type        String   // monthly, quarterly, yearly
-  start_date         DateTime @db.Date
-  end_date           DateTime @db.Date
-  attendance_summary Json     @default("{}")
-  skp_summary        Json     @default("{}")
-  total_score        Decimal? @default(0) @db.Decimal(5, 2)
-  status             String   @default("draft") // draft, submitted, approved, rejected
-  created_at         DateTime @default(now())
-  updated_at         DateTime @updatedAt
+  period_type        PeriodType
+  start_date         DateTime     @db.Date
+  end_date           DateTime     @db.Date
+  attendance_summary Json         @default("{}")
+  skp_summary        Json         @default("{}")
+  total_score        Decimal?     @default(0) @db.Decimal(5, 2)
+  status             ReportStatus @default(DRAFT)
+  created_at         DateTime     @default(now())
+  updated_at         DateTime     @updatedAt
 
   // Relations
   user      User       @relation(fields: [user_id], references: [id], onDelete: Cascade)
@@ -121,13 +161,13 @@ model PerformanceReport {
 }
 
 model Approval {
-  id          String    @id @default(uuid(7))
+  id          String         @id @default(uuid(7))
   report_id   String
   approver_id String
-  status      String    // pending, approved, rejected
+  status      ApprovalStatus @default(PENDING)
   comments    String?
   approved_at DateTime?
-  created_at  DateTime  @default(now())
+  created_at  DateTime       @default(now())
 
   // Relations
   report   PerformanceReport @relation(fields: [report_id], references: [id], onDelete: Cascade)

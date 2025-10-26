@@ -14,8 +14,8 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "ASNDigi - Platform Digital ASN",
-  description: "Platform digital untuk ASN yang modern dan efisien",
+  title: "PRIMA ASN - Performance Review and Intelligent Merit Assessment",
+  description: "Sistem Evaluasi Kinerja ASN Berbasis AI - Sistem penilaian kinerja ASN yang modern, objektif, dan berbasis teknologi kecerdasan buatan (AI) guna mendukung implementasi sistem merit secara nasional",
 };
 
 export default function RootLayout({

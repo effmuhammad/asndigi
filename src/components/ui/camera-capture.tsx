@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useRef, useCallback } from "react"
+import { useState, useRef, useCallback, useEffect } from "react"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent } from "@/components/ui/card"
 import { Camera, RotateCcw, Check, X } from "lucide-react"
@@ -16,55 +16,248 @@ export function CameraCapture({ onCapture, onCancel, className = "" }: CameraCap
   const [isActive, setIsActive] = useState(false)
   const [capturedImage, setCapturedImage] = useState<string | null>(null)
   const [stream, setStream] = useState<MediaStream | null>(null)
+  const [isLoading, setIsLoading] = useState(false)
+  const [videoReady, setVideoReady] = useState(false)
+  const [debugInfo, setDebugInfo] = useState<string>("")
   const videoRef = useRef<HTMLVideoElement>(null)
   const canvasRef = useRef<HTMLCanvasElement>(null)
 
-  const startCamera = useCallback(async () => {
-    try {
-      const mediaStream = await navigator.mediaDevices.getUserMedia({
-        video: { 
-          facingMode: "user", // Front camera for selfie
-          width: { ideal: 1280 },
-          height: { ideal: 720 }
-        }
-      })
-      
-      setStream(mediaStream)
-      setIsActive(true)
-      
-      if (videoRef.current) {
-        videoRef.current.srcObject = mediaStream
+  // Clean up stream when component unmounts
+  useEffect(() => {
+    return () => {
+      if (stream) {
+        stream.getTracks().forEach(track => track.stop())
       }
-    } catch (error) {
-      console.error("Error accessing camera:", error)
-      toast.error("Tidak dapat mengakses kamera. Pastikan izin kamera telah diberikan.")
+    }
+  }, [stream])
+
+  // Wait for video element to be available before starting camera
+  const waitForVideoElement = useCallback((): Promise<HTMLVideoElement> => {
+    return new Promise((resolve, reject) => {
+      const checkVideoRef = () => {
+        if (videoRef.current) {
+          resolve(videoRef.current)
+        } else {
+          // Check again after a short delay
+          setTimeout(checkVideoRef, 50)
+        }
+      }
+      
+      // Start checking immediately
+      checkVideoRef()
+      
+      // Timeout after 5 seconds
+      setTimeout(() => {
+        reject(new Error("Video element tidak tersedia setelah 5 detik"))
+      }, 5000)
+    })
+  }, [])
+
+  const setupVideoEvents = useCallback((video: HTMLVideoElement) => {
+    // Add multiple event listeners for debugging
+    video.onloadstart = () => {
+      console.log("🎥 Video loadstart event")
+      setDebugInfo("Video mulai dimuat...")
+    }
+    
+    video.onloadeddata = () => {
+      console.log("🎥 Video loadeddata event")
+      setDebugInfo("Data video dimuat...")
+    }
+    
+    video.onloadedmetadata = () => {
+      console.log("🎥 Video loadedmetadata event")
+      console.log("🎥 Video dimensions:", video.videoWidth, "x", video.videoHeight)
+      setDebugInfo("Metadata video dimuat...")
+      setVideoReady(true)
+      setIsLoading(false)
+    }
+    
+    video.oncanplay = () => {
+      console.log("🎥 Video canplay event")
+      setDebugInfo("Video siap diputar...")
+      setVideoReady(true)
+      setIsLoading(false)
+    }
+    
+    video.onplay = () => {
+      console.log("🎥 Video play event")
+      setDebugInfo("Video sedang diputar...")
+      setVideoReady(true)
+      setIsLoading(false)
+    }
+    
+    video.onplaying = () => {
+      console.log("🎥 Video playing event")
+      setDebugInfo("Video berhasil diputar!")
+      setVideoReady(true)
+      setIsLoading(false)
+    }
+    
+    // Handle video error
+    video.onerror = (error) => {
+      console.error("🎥 Video element error:", error)
+      setDebugInfo("Error pada elemen video")
+      toast.error("Gagal memuat video dari kamera")
+      setIsLoading(false)
     }
   }, [])
 
+  const startCamera = useCallback(async () => {
+    console.log("🎥 Starting camera...")
+    setIsLoading(true)
+    setVideoReady(false)
+    setDebugInfo("Memulai kamera...")
+    
+    try {
+      // Check if getUserMedia is supported
+      if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+        throw new Error("getUserMedia tidak didukung oleh browser ini")
+      }
+
+      console.log("🎥 Requesting camera access...")
+      setDebugInfo("Meminta akses kamera...")
+
+      const constraints = {
+        video: { 
+          facingMode: "user", // Front camera for selfie
+          width: { ideal: 1280, min: 640 },
+          height: { ideal: 720, min: 480 }
+        },
+        audio: false
+      }
+
+      console.log("🎥 Camera constraints:", constraints)
+
+      const mediaStream = await navigator.mediaDevices.getUserMedia(constraints)
+      
+      console.log("🎥 Got media stream:", mediaStream)
+      console.log("🎥 Video tracks:", mediaStream.getVideoTracks())
+      
+      setStream(mediaStream)
+      setIsActive(true)
+      setDebugInfo("Stream diperoleh, menunggu video element...")
+      
+      // Wait for video element to be available
+      try {
+        console.log("🎥 Waiting for video element...")
+        const video = await waitForVideoElement()
+        
+        console.log("🎥 Video element found, setting up...")
+        setDebugInfo("Video element ditemukan, mengatur...")
+        
+        // Setup event listeners
+        setupVideoEvents(video)
+        
+        // Set the stream to video element
+        video.srcObject = mediaStream
+        
+        console.log("🎥 Video srcObject set, attempting to play...")
+        setDebugInfo("Mencoba memutar video...")
+        
+        // Try to play the video with a small delay
+        setTimeout(async () => {
+          try {
+            await video.play()
+            console.log("🎥 Video play successful")
+          } catch (playError) {
+            console.error("🎥 Video play error:", playError)
+            // Video might still work even if autoplay fails
+            console.log("🎥 Continuing despite play error...")
+            setVideoReady(true)
+            setIsLoading(false)
+          }
+        }, 100)
+        
+        // Fallback timeout to ensure we don't stay loading forever
+        setTimeout(() => {
+          if (isLoading && !videoReady) {
+            console.log("🎥 Fallback timeout - forcing video ready state")
+            setVideoReady(true)
+            setIsLoading(false)
+            setDebugInfo("Video siap (fallback)")
+          }
+        }, 3000)
+        
+      } catch (videoError: any) {
+         console.error("🎥 Video element error:", videoError)
+         setDebugInfo(`Error: ${videoError.message}`)
+         setIsLoading(false)
+         toast.error("Video element tidak dapat diakses")
+       }
+      
+    } catch (error: any) {
+      console.error("🎥 Error accessing camera:", error)
+      setIsLoading(false)
+      
+      let errorMessage = "Tidak dapat mengakses kamera."
+      
+      if (error.name === "NotAllowedError" || error.name === "PermissionDeniedError") {
+        errorMessage = "Akses kamera ditolak. Silakan izinkan akses kamera di browser."
+      } else if (error.name === "NotFoundError" || error.name === "DevicesNotFoundError") {
+        errorMessage = "Kamera tidak ditemukan. Pastikan kamera terhubung."
+      } else if (error.name === "NotReadableError" || error.name === "TrackStartError") {
+        errorMessage = "Kamera sedang digunakan aplikasi lain."
+      } else if (error.name === "OverconstrainedError" || error.name === "ConstraintNotSatisfiedError") {
+        errorMessage = "Kamera tidak mendukung pengaturan yang diminta."
+      } else if (error.message) {
+        errorMessage = error.message
+      }
+      
+      setDebugInfo(`Error: ${errorMessage}`)
+      toast.error(errorMessage)
+    }
+  }, [waitForVideoElement, setupVideoEvents, isLoading, videoReady])
+
   const stopCamera = useCallback(() => {
+    console.log("🎥 Stopping camera...")
     if (stream) {
-      stream.getTracks().forEach(track => track.stop())
+      stream.getTracks().forEach(track => {
+        console.log("🎥 Stopping track:", track.kind, track.label)
+        track.stop()
+      })
       setStream(null)
     }
     setIsActive(false)
     setCapturedImage(null)
+    setVideoReady(false)
+    setIsLoading(false)
+    setDebugInfo("")
+    
+    // Clear video element
+    if (videoRef.current) {
+      videoRef.current.srcObject = null
+    }
   }, [stream])
 
   const capturePhoto = useCallback(() => {
-    if (!videoRef.current || !canvasRef.current) return
+    if (!videoRef.current || !canvasRef.current || !videoReady) {
+      toast.error("Video belum siap untuk diambil foto")
+      return
+    }
 
     const video = videoRef.current
     const canvas = canvasRef.current
     const context = canvas.getContext("2d")
 
-    if (!context) return
+    if (!context) {
+      toast.error("Tidak dapat mengakses canvas context")
+      return
+    }
 
-    // Set canvas dimensions to match video
-    canvas.width = video.videoWidth
-    canvas.height = video.videoHeight
+    // Set canvas dimensions to square (1:1 aspect ratio)
+    const size = Math.min(video.videoWidth || video.clientWidth, video.videoHeight || video.clientHeight)
+    canvas.width = size
+    canvas.height = size
 
-    // Draw the video frame to canvas
-    context.drawImage(video, 0, 0, canvas.width, canvas.height)
+    // Calculate crop position to center the square
+    const videoWidth = video.videoWidth || video.clientWidth
+    const videoHeight = video.videoHeight || video.clientHeight
+    const cropX = (videoWidth - size) / 2
+    const cropY = (videoHeight - size) / 2
+
+    // Draw the cropped square video frame to canvas
+    context.drawImage(video, cropX, cropY, size, size, 0, 0, size, size)
 
     // Convert canvas to blob
     canvas.toBlob((blob) => {
@@ -80,9 +273,11 @@ export function CameraCapture({ onCapture, onCancel, className = "" }: CameraCap
         // Stop camera after capture
         stopCamera()
         onCapture(file)
+      } else {
+        toast.error("Gagal mengambil foto")
       }
     }, "image/jpeg", 0.8)
-  }, [stopCamera, onCapture])
+  }, [stopCamera, onCapture, videoReady])
 
   const retakePhoto = useCallback(() => {
     setCapturedImage(null)
@@ -105,7 +300,7 @@ export function CameraCapture({ onCapture, onCancel, className = "" }: CameraCap
               <img
                 src={capturedImage}
                 alt="Captured selfie"
-                className="w-full h-64 object-cover rounded-lg"
+                className="w-full aspect-square object-cover rounded-lg"
               />
             </div>
             <div className="flex gap-2 justify-center">
@@ -145,8 +340,27 @@ export function CameraCapture({ onCapture, onCancel, className = "" }: CameraCap
                 autoPlay
                 playsInline
                 muted
-                className="w-full h-64 object-cover rounded-lg bg-gray-100"
+                className="w-full aspect-square object-cover rounded-lg bg-gray-100"
+                style={{ 
+                  transform: "scaleX(-1)", // Mirror the video for selfie
+                  display: videoReady ? "block" : "none"
+                }}
               />
+              {(isLoading || !videoReady) && (
+                <div className="w-full aspect-square bg-gray-100 rounded-lg flex items-center justify-center">
+                  <div className="text-center space-y-2">
+                    <Camera className="w-8 h-8 text-gray-400 mx-auto mb-2" />
+                    <p className="text-sm text-gray-500">
+                      {isLoading ? "Memuat kamera..." : "Menunggu kamera siap..."}
+                    </p>
+                    {debugInfo && (
+                      <p className="text-xs text-gray-400 max-w-48 mx-auto">
+                        Debug: {debugInfo}
+                      </p>
+                    )}
+                  </div>
+                </div>
+              )}
               <canvas
                 ref={canvasRef}
                 className="hidden"
@@ -156,6 +370,7 @@ export function CameraCapture({ onCapture, onCancel, className = "" }: CameraCap
               <Button
                 type="button"
                 onClick={capturePhoto}
+                disabled={!videoReady}
                 className="flex items-center gap-2"
               >
                 <Camera className="w-4 h-4" />
@@ -193,10 +408,11 @@ export function CameraCapture({ onCapture, onCancel, className = "" }: CameraCap
           <Button
             type="button"
             onClick={startCamera}
+            disabled={isLoading}
             className="flex items-center gap-2"
           >
             <Camera className="w-4 h-4" />
-            Aktifkan Kamera
+            {isLoading ? "Memuat..." : "Aktifkan Kamera"}
           </Button>
         </div>
       </CardContent>
