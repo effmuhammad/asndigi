@@ -37,6 +37,11 @@ export default function PresensiPage() {
   const [isUploadingPhoto, setIsUploadingPhoto] = useState(false)
   const [todayAttendance, setTodayAttendance] = useState<any>(null)
   const [attendanceHistory, setAttendanceHistory] = useState<AttendanceRecord[]>([])
+  const [workSettings, setWorkSettings] = useState<{
+    work_start_time: string
+    work_end_time: string
+    late_tolerance_minutes: number
+  } | null>(null)
 
   // Update current time every second
   useEffect(() => {
@@ -47,72 +52,137 @@ export default function PresensiPage() {
     return () => clearInterval(timer)
   }, [])
 
-  // Get current location on component mount
+  // Get current location on component mount with retry mechanism
   useEffect(() => {
+    let retryCount = 0
+    const maxRetries = 3
+    let isComponentMounted = true
+    let debounceTimer: NodeJS.Timeout | null = null
+
+    // Early check for geolocation support
     if (!navigator.geolocation) {
-      setLocationError("Geolocation tidak didukung oleh browser ini")
+      setLocationError("Geolocation tidak didukung oleh browser ini. Silakan gunakan browser yang mendukung GPS.")
       return
     }
 
-    const getLocation = () => {
-      navigator.geolocation.getCurrentPosition(
-        (position) => {
-          setLocation({
-            lat: position.coords.latitude,
-            lng: position.coords.longitude
-          })
-          setLocationError(null) // Clear any previous errors
-        },
-        (error) => {
-          console.error("Error getting location:", {
-            code: error.code,
-            message: error.message,
-            timestamp: new Date().toISOString()
-          })
-          
-          let errorMessage = "Gagal mendapatkan lokasi."
-          
-          switch (error.code) {
-            case error.PERMISSION_DENIED:
-              errorMessage = "Akses lokasi ditolak. Silakan izinkan akses lokasi di browser."
-              break
-            case error.POSITION_UNAVAILABLE:
-              errorMessage = "Informasi lokasi tidak tersedia. Pastikan GPS aktif."
-              break
-            case error.TIMEOUT:
-              errorMessage = "Waktu habis saat mendapatkan lokasi. Coba lagi."
-              break
-            default:
-              errorMessage = "Terjadi kesalahan saat mendapatkan lokasi."
-          }
-          
-          setLocationError(errorMessage)
-        },
-        {
-          enableHighAccuracy: true,
-          timeout: 15000, // Increased timeout
-          maximumAge: 300000 // 5 minutes cache
+    // Development fallback location (Jakarta coordinates)
+    const isDevelopment = process.env.NODE_ENV === 'development'
+    const fallbackLocation = { lat: -6.2088, lng: 106.8456 }
+
+    const getLocationWithRetry = (attempt = 0) => {
+      if (!isComponentMounted) return
+
+      // Clear any existing debounce timer
+      if (debounceTimer) {
+        clearTimeout(debounceTimer)
+      }
+
+      // Debounce mechanism to prevent rapid successive calls
+      debounceTimer = setTimeout(() => {
+        if (!navigator.geolocation) {
+          setLocationError("Geolocation tidak didukung oleh browser ini")
+          return
         }
-      )
+
+        navigator.geolocation.getCurrentPosition(
+          (position) => {
+            if (!isComponentMounted) return
+            
+            setLocation({
+              lat: position.coords.latitude,
+              lng: position.coords.longitude
+            })
+            setLocationError(null)
+            retryCount = 0 // Reset retry count on success
+          },
+          (error) => {
+            if (!isComponentMounted) return
+
+            let errorMessage = "Gagal mendapatkan lokasi."
+            let shouldRetry = false
+            
+            switch (error.code) {
+              case error.PERMISSION_DENIED:
+                errorMessage = "Akses lokasi ditolak. Silakan izinkan akses lokasi di browser."
+                break
+              case error.POSITION_UNAVAILABLE:
+                errorMessage = "GPS tidak tersedia. Pastikan GPS aktif dan coba lagi."
+                shouldRetry = true
+                break
+              case error.TIMEOUT:
+                errorMessage = "Waktu habis saat mendapatkan lokasi. Mencoba lagi..."
+                shouldRetry = true
+                break
+              default:
+                errorMessage = "Terjadi kesalahan saat mendapatkan lokasi."
+                shouldRetry = true
+            }
+
+            // Only log once per error type to reduce spam
+            if (attempt === 0) {
+              console.warn(`Geolocation error (code ${error.code}): ${error.message}`)
+            }
+
+            // Retry mechanism with exponential backoff
+            if (shouldRetry && attempt < maxRetries) {
+              const backoffDelay = Math.pow(2, attempt) * 2000 // 2s, 4s, 8s
+              setTimeout(() => {
+                if (isComponentMounted) {
+                  getLocationWithRetry(attempt + 1)
+                }
+              }, backoffDelay)
+              
+              if (attempt === 0) {
+                setLocationError(`${errorMessage} (Mencoba lagi dalam ${backoffDelay/1000} detik...)`)
+              }
+            } else {
+              // All retries failed or non-retryable error
+              if (isDevelopment && shouldRetry) {
+                // Use fallback location in development
+                setLocation(fallbackLocation)
+                setLocationError("Menggunakan lokasi default untuk development")
+              } else {
+                setLocationError(errorMessage)
+              }
+            }
+          },
+          {
+            enableHighAccuracy: true,
+            timeout: 10000, // Reduced timeout to 10 seconds
+            maximumAge: 300000 // 5 minutes cache
+          }
+        )
+      }, attempt === 0 ? 0 : 500) // No delay for first attempt, 500ms for retries
     }
 
     // Check permissions first
     if ('permissions' in navigator) {
       navigator.permissions.query({ name: 'geolocation' }).then((result) => {
-        if (result.state === 'granted') {
-          getLocation()
-        } else if (result.state === 'prompt') {
-          getLocation()
+        if (result.state === 'granted' || result.state === 'prompt') {
+          getLocationWithRetry()
         } else {
-          setLocationError("Akses lokasi ditolak. Silakan izinkan akses lokasi di pengaturan browser.")
+          if (isDevelopment) {
+            setLocation(fallbackLocation)
+            setLocationError("Menggunakan lokasi default untuk development")
+          } else {
+            setLocationError("Akses lokasi ditolak. Silakan izinkan akses lokasi di pengaturan browser.")
+          }
         }
       }).catch(() => {
         // Fallback if permissions API is not supported
-        getLocation()
+        getLocationWithRetry()
       })
     } else {
       // Fallback if permissions API is not supported
-      getLocation()
+      getLocationWithRetry()
+    }
+
+    // Cleanup function
+    return () => {
+      isComponentMounted = false
+      if (debounceTimer) {
+        clearTimeout(debounceTimer)
+      }
     }
   }, [])
 
@@ -120,7 +190,20 @@ export default function PresensiPage() {
   useEffect(() => {
     loadTodayAttendance()
     loadAttendanceHistory()
+    loadWorkSettings()
   }, [])
+
+  const loadWorkSettings = async () => {
+    try {
+      const response = await fetch('/api/admin/work-settings')
+      if (response.ok) {
+        const data = await response.json()
+        setWorkSettings(data)
+      }
+    } catch (error) {
+      console.error('Error loading work settings:', error)
+    }
+  }
 
   const loadTodayAttendance = async () => {
     try {
@@ -157,13 +240,13 @@ export default function PresensiPage() {
         if (data && data.attendance && Array.isArray(data.attendance)) {
           const formattedHistory = data.attendance.map((record: any) => ({
             id: record.id,
-            date: new Date(record.date).toLocaleDateString("id-ID"),
-            checkIn: record.check_in_time ? new Date(record.check_in_time).toLocaleTimeString("id-ID") : null,
-            checkOut: record.check_out_time ? new Date(record.check_out_time).toLocaleTimeString("id-ID") : null,
-            status: record.status === "present" ? "hadir" : record.status === "late" ? "terlambat" : "alpha",
+            date: new Date(record.attendance_date).toLocaleDateString("id-ID"),
+            checkIn: record.check_in ? new Date(record.check_in).toLocaleTimeString("id-ID") : null,
+            checkOut: record.check_out ? new Date(record.check_out).toLocaleTimeString("id-ID") : null,
+            status: record.status === "PRESENT" ? "hadir" : record.status === "LATE" ? "terlambat" : "alpha",
             location: {
-              latitude: record.latitude,
-              longitude: record.longitude,
+              latitude: record.location_data?.latitude,
+              longitude: record.location_data?.longitude,
               address: "Kantor Pusat"
             }
           }))
@@ -326,97 +409,119 @@ export default function PresensiPage() {
         </div>
       </div>
 
-      <div className="grid gap-6 md:grid-cols-2">
-        {/* Current Status */}
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <Clock className="w-5 h-5" />
-              Status Hari Ini
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            <div className="text-center">
-              <div className="text-2xl font-bold">
-                {currentTime.toLocaleTimeString("id-ID")}
-              </div>
-              <div className="text-sm text-muted-foreground">
-                {currentTime.toLocaleDateString("id-ID", {
-                  weekday: "long",
-                  year: "numeric",
-                  month: "long",
-                  day: "numeric"
-                })}
-              </div>
+      {/* Combined Status Card */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <Clock className="w-5 h-5" />
+            Status Presensi
+          </CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          {/* Time and Date Section */}
+          <div className="text-center">
+            <div className="text-2xl font-bold">
+              {currentTime.toLocaleTimeString("id-ID")}
             </div>
+            <div className="text-sm text-muted-foreground">
+              {currentTime.toLocaleDateString("id-ID", {
+                weekday: "long",
+                year: "numeric",
+                month: "long",
+                day: "numeric"
+              })}
+            </div>
+          </div>
 
-            <Separator />
+          {/* Work Time Display */}
+          {workSettings && (
+            <div className="bg-blue-50 border border-blue-200 rounded-lg p-3">
+              <h4 className="text-sm font-medium text-blue-800 mb-2">Jam Kerja</h4>
+              <div className="flex justify-between text-sm text-blue-700">
+                <span>Masuk: {workSettings.work_start_time}</span>
+                <span>Pulang: {workSettings.work_end_time}</span>
+              </div>
+              {workSettings.late_tolerance_minutes > 0 && (
+                <div className="text-xs text-blue-600 mt-1">
+                  Toleransi keterlambatan: {workSettings.late_tolerance_minutes} menit
+                </div>
+              )}
+            </div>
+          )}
 
-            {todayAttendance ? (
-              <div className="space-y-3">
+          <Separator />
+
+          {/* Attendance Status Section */}
+          {todayAttendance ? (
+            <div className="space-y-3">
+              <div className="flex items-center justify-between">
+                <span className="text-sm">Presensi Masuk:</span>
+                <Badge variant="secondary">
+                  {new Date(todayAttendance.check_in).toLocaleTimeString("id-ID")}
+                </Badge>
+              </div>
+              {todayAttendance.check_out && (
                 <div className="flex items-center justify-between">
-                  <span className="text-sm">Check In:</span>
+                  <span className="text-sm">Presensi Keluar:</span>
                   <Badge variant="secondary">
-                    {new Date(todayAttendance.check_in_time).toLocaleTimeString("id-ID")}
+                    {new Date(todayAttendance.check_out).toLocaleTimeString("id-ID")}
                   </Badge>
                 </div>
-                {todayAttendance.check_out_time && (
-                  <div className="flex items-center justify-between">
-                    <span className="text-sm">Check Out:</span>
-                    <Badge variant="secondary">
-                      {new Date(todayAttendance.check_out_time).toLocaleTimeString("id-ID")}
-                    </Badge>
-                  </div>
-                )}
-                <div className="flex items-center justify-between">
-                  <span className="text-sm">Status:</span>
-                  <Badge variant={todayAttendance.status === "present" ? "default" : "destructive"}>
-                    {todayAttendance.status === "present" ? "Hadir" : 
-                     todayAttendance.status === "late" ? "Terlambat" : "Tidak Hadir"}
-                  </Badge>
+              )}
+              <div className="flex items-center justify-between">
+                <span className="text-sm">Status:</span>
+                <Badge variant={todayAttendance.status === "PRESENT" ? "default" : "destructive"}>
+                  {todayAttendance.status === "PRESENT" ? "Hadir" : 
+                   todayAttendance.status === "LATE" ? "Terlambat" : "Tidak Hadir"}
+                </Badge>
+              </div>
+              
+              {/* Show current attendance status */}
+              {todayAttendance.check_in && !todayAttendance.check_out && (
+                <div className="text-center p-2 bg-green-50 border border-green-200 rounded-lg">
+                  <p className="text-sm text-green-700 font-medium">
+                    ✓ Sudah presensi masuk hari ini
+                  </p>
+                  <p className="text-xs text-green-600">
+                    Jangan lupa presensi keluar
+                  </p>
                 </div>
-                
-                {/* Show current attendance status */}
-                {todayAttendance.check_in_time && !todayAttendance.check_out_time && (
-                  <div className="text-center p-2 bg-green-50 border border-green-200 rounded-lg">
-                    <p className="text-sm text-green-700 font-medium">
-                      ✓ Sudah presensi masuk hari ini
-                    </p>
-                    <p className="text-xs text-green-600">
-                      Jangan lupa presensi keluar
-                    </p>
-                  </div>
-                )}
-                
-                {todayAttendance.check_in_time && todayAttendance.check_out_time && (
-                  <div className="text-center p-2 bg-blue-50 border border-blue-200 rounded-lg">
-                    <p className="text-sm text-blue-700 font-medium">
-                      ✓ Presensi hari ini sudah lengkap
-                    </p>
-                  </div>
-                )}
-              </div>
-            ) : (
-              <div className="text-center text-muted-foreground">
-                Belum melakukan presensi hari ini
-              </div>
-            )}
-          </CardContent>
-        </Card>
+              )}
+              
+              {todayAttendance.check_in && todayAttendance.check_out && (
+                <div className="text-center p-2 bg-blue-50 border border-blue-200 rounded-lg">
+                  <p className="text-sm text-blue-700 font-medium">
+                    ✓ Presensi hari ini sudah lengkap
+                  </p>
+                </div>
+              )}
+            </div>
+          ) : (
+            <div className="text-center text-muted-foreground">
+              Belum melakukan presensi hari ini
+            </div>
+          )}
 
-        {/* Location Status */}
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <MapPin className="w-5 h-5" />
+          <Separator />
+
+          {/* Location Status Section */}
+          <div className="space-y-2">
+            <div className="flex items-center gap-2 text-sm font-medium text-muted-foreground">
+              <MapPin className="w-4 h-4" />
               Status Lokasi
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
+            </div>
             {locationError ? (
-              <div className="flex items-center gap-2 text-destructive">
-                <XCircle className="w-4 h-4" />
-                <span className="text-sm">{locationError}</span>
+              <div className="space-y-2">
+                <div className="flex items-center gap-2 text-destructive">
+                  <XCircle className="w-4 h-4" />
+                  <span className="text-sm font-medium">Lokasi tidak dapat diakses</span>
+                </div>
+                <div className="text-xs text-muted-foreground bg-red-50 border border-red-200 rounded-lg p-2">
+                  {locationError}
+                </div>
+                <div className="text-xs text-blue-600">
+                  💡 Tips: Pastikan GPS aktif dan izinkan akses lokasi di browser
+                </div>
               </div>
             ) : location ? (
               <div className="space-y-2">
@@ -434,9 +539,9 @@ export default function PresensiPage() {
                 <span className="text-sm">Mendeteksi lokasi...</span>
               </div>
             )}
-          </CardContent>
-        </Card>
-      </div>
+          </div>
+        </CardContent>
+      </Card>
 
       {/* Aksi Presensi - Camera & Action Buttons Combined */}
       <Card>
@@ -480,7 +585,7 @@ export default function PresensiPage() {
 
               {/* Check In/Out Buttons */}
               <div className="space-y-2">
-                {!todayAttendance?.check_in_time ? (
+                {!todayAttendance?.check_in ? (
                   <Button
                     onClick={handleCheckIn}
                     disabled={!location || !supabasePhotoUrl || isSubmitting || isUploadingPhoto}
@@ -488,7 +593,7 @@ export default function PresensiPage() {
                   >
                     {isSubmitting ? "Memproses..." : isUploadingPhoto ? "Mengupload foto..." : "Presensi Masuk"}
                   </Button>
-                ) : !todayAttendance?.check_out_time ? (
+                ) : !todayAttendance?.check_out ? (
                   <Button
                     onClick={handleCheckOut}
                     disabled={!location || isSubmitting}

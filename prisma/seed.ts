@@ -67,10 +67,24 @@ async function main() {
     }
   })
 
+  // Create default work settings
+  const workSettings = await prisma.workSettings.upsert({
+    where: { id: 'default' },
+    update: {},
+    create: {
+      id: 'default',
+      work_start_time: '08:00',
+      work_end_time: '17:00',
+      late_tolerance_minutes: 0,
+      is_active: true
+    }
+  })
+
   console.log('Seeded users:')
   console.log('- Admin:', admin)
   console.log('- Supervisor:', supervisor)
   console.log('- Employee:', employee)
+  console.log('Seeded work settings:', workSettings)
 }
 
 main()

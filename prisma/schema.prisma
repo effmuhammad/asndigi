@@ -177,3 +177,16 @@ model Approval {
   @@index([approver_id])
   @@map("approvals")
 }
+
+model WorkSettings {
+  id                      String   @id @default(uuid(7))
+  work_start_time         String   @default("08:00") // Format HH:mm
+  work_end_time           String   @default("17:00") // Format HH:mm
+  late_tolerance_minutes  Int      @default(0)
+  is_active              Boolean  @default(true)
+  created_at             DateTime @default(now())
+  updated_at             DateTime @updatedAt
+
+  @@index([is_active])
+  @@map("work_settings")
+}

@@ -43,7 +43,6 @@ export default function DashboardLayout({
           <SidebarInset className="flex flex-col flex-1 min-h-0 w-full">
             <header className="flex h-16 shrink-0 items-center gap-2 border-b px-4 bg-background z-10">
               <SidebarTrigger className="-ml-1" />
-              <Separator orientation="vertical" className="mr-2 h-4" />
               <Breadcrumb>
                 <BreadcrumbList>
                   <BreadcrumbItem className="hidden md:block">
