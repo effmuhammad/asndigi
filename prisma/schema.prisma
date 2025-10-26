@@ -54,6 +54,13 @@ enum ApprovalStatus {
   REJECTED
 }
 
+enum SkpMonthlyStatus {
+  DRAFT
+  SUBMITTED
+  APPROVED
+  REJECTED
+}
+
 
 model User {
   id                String           @id @default(uuid(7))
@@ -74,9 +81,11 @@ model User {
   supervisor          User?                @relation("UserSupervisor", fields: [supervisor_id], references: [id])
   subordinates        User[]               @relation("UserSupervisor")
   attendances         Attendance[]
-  skp_items           SkpItem[]
   performance_reports PerformanceReport[]
   approvals           Approval[]
+  skp_monthly_entries SkpMonthlyEntry[]
+  created_skp_monthly SkpMonthlyEntry[]    @relation("SkpMonthlyCreator")
+  supervised_skp_monthly SkpMonthlyEntry[] @relation("SkpMonthlySupervisor")
 
   @@map("users")
 }
@@ -100,43 +109,7 @@ model Attendance {
   @@map("attendances")
 }
 
-model SkpItem {
-  id          String   @id @default(uuid(7))
-  user_id     String
-  year        Int
-  no          Int
-  indicator   String
-  action_plan String
-  target      String
-  unit        String?
-  weight      Decimal? @default(0) @db.Decimal(5, 2)
-  created_at  DateTime @default(now())
-  updated_at  DateTime @updatedAt
 
-  // Relations
-  user             User             @relation(fields: [user_id], references: [id], onDelete: Cascade)
-  skp_realizations SkpRealization[]
-
-  @@index([user_id, year])
-  @@map("skp_items")
-}
-
-model SkpRealization {
-  id                  String   @id @default(uuid(7))
-  skp_item_id         String
-  realization         String?
-  progress_percentage Decimal? @default(0) @db.Decimal(5, 2)
-  evidence_files      Json     @default("[]")
-  notes               String?
-  created_at          DateTime @default(now())
-  updated_at          DateTime @updatedAt
-
-  // Relations
-  skp_item SkpItem @relation(fields: [skp_item_id], references: [id], onDelete: Cascade)
-
-  @@index([skp_item_id])
-  @@map("skp_realizations")
-}
 
 model PerformanceReport {
   id                 String       @id @default(uuid(7))
@@ -189,4 +162,53 @@ model WorkSettings {
 
   @@index([is_active])
   @@map("work_settings")
+}
+
+model SkpMonthlyEntry {
+  id                 String            @id @default(uuid(7))
+  user_id            String
+  month              Int               // 1-12
+  year               Int
+  sequence_no        Int               @default(1)
+  indicator          String
+  action_plan        String
+  target_realization String
+  supporting_data    String?
+  feedback           String?
+  status             SkpMonthlyStatus  @default(DRAFT)
+  created_at         DateTime          @default(now())
+  updated_at         DateTime          @updatedAt
+  created_by         String?
+  supervisor_id      String?
+
+  // Relations
+  user       User                @relation(fields: [user_id], references: [id], onDelete: Cascade)
+  creator    User?               @relation("SkpMonthlyCreator", fields: [created_by], references: [id])
+  supervisor User?               @relation("SkpMonthlySupervisor", fields: [supervisor_id], references: [id])
+  files      SkpMonthlyFile[]
+
+  @@unique([user_id, year, month, sequence_no])
+  @@index([user_id])
+  @@index([year, month])
+  @@index([status])
+  @@index([supervisor_id])
+  @@map("skp_monthly_entries")
+}
+
+model SkpMonthlyFile {
+  id            String           @id @default(uuid(7))
+  entry_id      String
+  file_name     String
+  original_name String
+  file_path     String
+  file_type     String?
+  file_size     Int?
+  uploaded_at   DateTime         @default(now())
+
+  // Relations
+  entry SkpMonthlyEntry @relation(fields: [entry_id], references: [id], onDelete: Cascade)
+
+  @@index([entry_id])
+  @@index([uploaded_at])
+  @@map("skp_monthly_files")
 }

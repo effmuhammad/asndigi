@@ -36,9 +36,9 @@ const items = [
     icon: UserCheck,
   },
   {
-    title: "SKP",
-    url: "/dashboard/skp",
-    icon: Target,
+    title: "Sasaran Kinerja Pegawai",
+    url: "/dashboard/skp-bulanan",
+    icon: Calendar,
   },
   {
     title: "Laporan Kinerja",

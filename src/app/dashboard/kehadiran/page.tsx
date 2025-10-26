@@ -209,7 +209,7 @@ export default function KehadiranPage() {
   const attendanceRate = totalEmployees > 0 ? ((presentEmployees + lateEmployees) / totalEmployees * 100).toFixed(1) : "0"
 
   return (
-    <div className="w-full max-w-none p-6 space-y-6">
+    <div className="w-full max-w-none space-y-6">
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-3xl font-bold">Kehadiran</h1>
