@@ -76,6 +76,13 @@ enum TrainingCategory {
   KEPEMIMPINAN
 }
 
+enum OrganizationalPredicate {
+  SANGAT_BAIK
+  BAIK
+  CUKUP
+  KURANG
+}
+
 
 model User {
   id                String           @id @default(uuid(7))
@@ -102,6 +109,7 @@ model User {
   created_skp_monthly SkpMonthlyEntry[]    @relation("SkpMonthlyCreator")
   supervised_skp_monthly SkpMonthlyEntry[] @relation("SkpMonthlySupervisor")
   profile             Profile?
+  created_organizational_reports OrganizationalPerformanceReport[] @relation("OrganizationalReportCreator")
   
   @@map("users")
 }
@@ -302,4 +310,27 @@ model TrainingRecord {
   @@index([start_date])
   @@index([category])
   @@map("training_records")
+}
+
+model OrganizationalPerformanceReport {
+  id                        String                   @id @default(uuid(7))
+  year                      Int
+  total_employees           Int
+  average_attendance_rate   Decimal                  @db.Decimal(5, 2)
+  average_skp_progress      Decimal                  @db.Decimal(5, 2)
+  overall_performance_score Decimal                  @db.Decimal(5, 2)
+  predicate                 OrganizationalPredicate
+  summary                   String?
+  recommendations           String?
+  created_at                DateTime                 @default(now())
+  updated_at                DateTime                 @updatedAt
+  created_by                String?
+
+  // Relations
+  creator User? @relation("OrganizationalReportCreator", fields: [created_by], references: [id])
+
+  @@unique([year])
+  @@index([year])
+  @@index([predicate])
+  @@map("organizational_performance_reports")
 }

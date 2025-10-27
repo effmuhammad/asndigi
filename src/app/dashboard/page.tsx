@@ -12,7 +12,7 @@ export default function DashboardPage() {
 
   useEffect(() => {
     if (status === "unauthenticated") {
-      router.push("/login")
+      router.push("/")
     }
   }, [status, router])
 
@@ -43,7 +43,7 @@ export default function DashboardPage() {
           </p>
         </div>
         <Button 
-          onClick={() => signOut({ callbackUrl: "/login" })}
+          onClick={() => signOut({ callbackUrl: "/" })}
           variant="outline"
         >
           Keluar

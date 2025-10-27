@@ -32,7 +32,7 @@ export default function DashboardLayout({
   }
 
   if (!session) {
-    redirect("/login")
+    redirect("/")
   }
 
   return (

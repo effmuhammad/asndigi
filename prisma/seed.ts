@@ -13,6 +13,7 @@ async function main() {
   console.log('🌱 Starting database seeding...')
 
   // Clear existing data in correct order (respecting foreign key constraints)
+  await prisma.organizationalPerformanceReport.deleteMany()
   await prisma.trainingRecord.deleteMany()
   await prisma.skHistory.deleteMany()
   await prisma.skpMonthlyFile.deleteMany()
@@ -589,6 +590,40 @@ async function main() {
   })
 
   console.log('✅ Database seeding completed successfully!')
+
+  // 9. Create Organizational Performance Reports
+  console.log('🏢 Creating organizational performance reports...')
+  
+  const organizationalReports = await Promise.all([
+    prisma.organizationalPerformanceReport.create({
+      data: {
+        year: 2023,
+        total_employees: 6,
+        average_attendance_rate: 88.5,
+        average_skp_progress: 85.0,
+        overall_performance_score: 86.75,
+        predicate: 'BAIK',
+        summary: 'Kinerja organisasi tahun 2023 menunjukkan tren positif dengan tingkat kehadiran yang baik dan pencapaian SKP yang memuaskan. Sebagian besar pegawai mampu mencapai target yang ditetapkan.',
+        recommendations: 'Perlu peningkatan disiplin kehadiran dan optimalisasi pencapaian target SKP. Disarankan untuk mengadakan pelatihan tambahan dan monitoring yang lebih intensif.',
+        created_by: admin.id
+      }
+    }),
+    prisma.organizationalPerformanceReport.create({
+      data: {
+        year: 2024,
+        total_employees: 6,
+        average_attendance_rate: 91.2,
+        average_skp_progress: 89.5,
+        overall_performance_score: 90.35,
+        predicate: 'SANGAT_BAIK',
+        summary: 'Tahun 2024 menunjukkan peningkatan signifikan dalam kinerja organisasi. Tingkat kehadiran meningkat dan pencapaian SKP lebih optimal dibandingkan tahun sebelumnya.',
+        recommendations: 'Pertahankan momentum positif dan terus tingkatkan inovasi dalam pelayanan. Fokus pada pengembangan kapasitas SDM dan digitalisasi proses kerja.',
+        created_by: admin.id
+      }
+    })
+  ])
+
+  console.log('✅ Database seeding completed successfully!')
   console.log(`
 📊 Seeded data summary:
 - Users: 6 (1 Admin, 2 Supervisors, 3 Staff)
@@ -601,6 +636,7 @@ async function main() {
 - Approvals: 2 approval records
 - SKP Monthly Entries: 3 entries
 - SKP Monthly Files: 3 files
+- Organizational Performance Reports: 2 reports (2023-2024)
   `)
 }
 

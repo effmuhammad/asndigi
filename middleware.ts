@@ -15,7 +15,7 @@ export default auth((req) => {
   // Protect all dashboard routes (require authentication)
   if (pathname.startsWith('/dashboard')) {
     if (!session) {
-      return NextResponse.redirect(new URL('/login', req.url))
+      return NextResponse.redirect(new URL('/', req.url))
     }
   }
 

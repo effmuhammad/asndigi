@@ -46,7 +46,7 @@ export function NavUser({
 
   const handleLogout = async () => {
     await signOut({ redirect: false })
-    router.push("/login")
+    router.push("/")
   }
 
   return (
