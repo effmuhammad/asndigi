@@ -1,6 +1,6 @@
 "use client"
 
-import { Calendar, Home, Inbox, Search, Settings, Users, FileText, BarChart3, Clock, UserCheck, Target, ClipboardCheck, UserCog } from "lucide-react"
+import { Calendar, Home, Inbox, Search, Settings, Users, FileText, BarChart3, Clock, Target, ClipboardCheck, UserCog } from "lucide-react"
 import { useSession } from "next-auth/react"
 import { usePathname } from "next/navigation"
 
@@ -31,11 +31,6 @@ const items = [
     icon: Clock,
   },
   {
-    title: "Kehadiran",
-    url: "/dashboard/kehadiran",
-    icon: UserCheck,
-  },
-  {
     title: "Sasaran Kinerja Pegawai",
     url: "/dashboard/skp-bulanan",
     icon: Calendar,
@@ -49,11 +44,6 @@ const items = [
     title: "Profil ASN",
     url: "/dashboard/profile",
     icon: Users,
-  },
-  {
-    title: "Pengaturan",
-    url: "/dashboard/settings",
-    icon: Settings,
   },
 ]
 

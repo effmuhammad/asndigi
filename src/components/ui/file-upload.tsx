@@ -1,219 +1,168 @@
-"use client"
+'use client';
 
-import { useState, useRef } from "react"
-import { Button } from "@/components/ui/button"
-import { Input } from "@/components/ui/input"
-import { Label } from "@/components/ui/label"
-import { Progress } from "@/components/ui/progress"
-import { Badge } from "@/components/ui/badge"
-import { Upload, X, FileText, Image, AlertCircle } from "lucide-react"
-import { toast } from "sonner"
+import React, { useCallback, useState } from 'react';
+import { useDropzone } from 'react-dropzone';
+import { Upload, X, File, Image, FileText } from 'lucide-react';
+import { Button } from '@/components/ui/button';
+import { Progress } from '@/components/ui/progress';
+import { cn } from '@/lib/utils';
 
 interface FileUploadProps {
-  onUpload: (files: UploadedFile[]) => void
-  accept?: string
-  multiple?: boolean
-  maxSize?: number // in MB
-  uploadType?: "photo" | "document" | "general"
-  className?: string
-}
-
-interface UploadedFile {
-  url: string
-  filename: string
-  originalName: string
-  size: number
-  type: string
+  onFileSelect: (file: File) => void;
+  onFileRemove?: () => void;
+  accept?: Record<string, string[]>;
+  maxSize?: number;
+  currentFile?: string | null;
+  type?: 'photo' | 'document';
+  className?: string;
+  disabled?: boolean;
 }
 
 export function FileUpload({
-  onUpload,
-  accept = "*/*",
-  multiple = false,
-  maxSize = 10,
-  uploadType = "general",
-  className = ""
+  onFileSelect,
+  onFileRemove,
+  accept = {
+    'image/*': ['.jpeg', '.jpg', '.png', '.webp'],
+    'application/pdf': ['.pdf']
+  },
+  maxSize = 5 * 1024 * 1024, // 5MB
+  currentFile,
+  type = 'document',
+  className,
+  disabled = false
 }: FileUploadProps) {
-  const [uploading, setUploading] = useState(false)
-  const [uploadProgress, setUploadProgress] = useState(0)
-  const [uploadedFiles, setUploadedFiles] = useState<UploadedFile[]>([])
-  const fileInputRef = useRef<HTMLInputElement>(null)
+  const [uploadProgress, setUploadProgress] = useState(0);
+  const [isUploading, setIsUploading] = useState(false);
 
-  const handleFileSelect = async (event: React.ChangeEvent<HTMLInputElement>) => {
-    const files = event.target.files
-    if (!files || files.length === 0) return
-
-    setUploading(true)
-    setUploadProgress(0)
-
-    const newUploadedFiles: UploadedFile[] = []
-
-    try {
-      for (let i = 0; i < files.length; i++) {
-        const file = files[i]
-
-        // Validate file size
-        if (file.size > maxSize * 1024 * 1024) {
-          toast.error(`File ${file.name} terlalu besar. Maksimal ${maxSize}MB`)
-          continue
-        }
-
-        const formData = new FormData()
-        formData.append("file", file)
-        formData.append("type", uploadType)
-
-        const response = await fetch("/api/upload", {
-          method: "POST",
-          body: formData
-        })
-
-        if (!response.ok) {
-          const error = await response.json()
-          toast.error(`Gagal upload ${file.name}: ${error.error}`)
-          continue
-        }
-
-        const uploadedFile = await response.json()
-        newUploadedFiles.push(uploadedFile)
-
-        // Update progress
-        setUploadProgress(((i + 1) / files.length) * 100)
-      }
-
-      if (newUploadedFiles.length > 0) {
-        const allFiles = multiple ? [...uploadedFiles, ...newUploadedFiles] : newUploadedFiles
-        setUploadedFiles(allFiles)
-        onUpload(allFiles)
-        toast.success(`Berhasil upload ${newUploadedFiles.length} file`)
-      }
-    } catch (error) {
-      console.error("Upload error:", error)
-      toast.error("Terjadi kesalahan saat upload file")
-    } finally {
-      setUploading(false)
-      setUploadProgress(0)
-      if (fileInputRef.current) {
-        fileInputRef.current.value = ""
-      }
+  const onDrop = useCallback((acceptedFiles: File[]) => {
+    if (acceptedFiles.length > 0 && !disabled) {
+      const file = acceptedFiles[0];
+      onFileSelect(file);
     }
-  }
+  }, [onFileSelect, disabled]);
 
-  const removeFile = (index: number) => {
-    const newFiles = uploadedFiles.filter((_, i) => i !== index)
-    setUploadedFiles(newFiles)
-    onUpload(newFiles)
-  }
+  const { getRootProps, getInputProps, isDragActive, fileRejections } = useDropzone({
+    onDrop,
+    accept,
+    maxSize,
+    multiple: false,
+    disabled: disabled || isUploading
+  });
 
-  const getFileIcon = (type: string) => {
-    if (type.startsWith("image/")) {
-      return <Image className="w-4 h-4" />
+  const getFileIcon = (fileName: string) => {
+    const extension = fileName.split('.').pop()?.toLowerCase();
+    if (['jpg', 'jpeg', 'png', 'webp'].includes(extension || '')) {
+      return <Image className="h-8 w-8 text-blue-500" />;
+    } else if (extension === 'pdf') {
+      return <FileText className="h-8 w-8 text-red-500" />;
     }
-    return <FileText className="w-4 h-4" />
-  }
+    return <File className="h-8 w-8 text-gray-500" />;
+  };
 
   const formatFileSize = (bytes: number) => {
-    if (bytes === 0) return "0 Bytes"
-    const k = 1024
-    const sizes = ["Bytes", "KB", "MB", "GB"]
-    const i = Math.floor(Math.log(bytes) / Math.log(k))
-    return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + " " + sizes[i]
-  }
+    if (bytes === 0) return '0 Bytes';
+    const k = 1024;
+    const sizes = ['Bytes', 'KB', 'MB', 'GB'];
+    const i = Math.floor(Math.log(bytes) / Math.log(k));
+    return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
+  };
 
   return (
-    <div className={`space-y-4 ${className}`}>
-      <div className="flex items-center gap-2">
-        <Input
-          ref={fileInputRef}
-          type="file"
-          accept={accept}
-          multiple={multiple}
-          onChange={handleFileSelect}
-          disabled={uploading}
-          className="hidden"
-          id="file-upload"
-        />
-        <Label htmlFor="file-upload" className="cursor-pointer">
-          <Button
-            type="button"
-            variant="outline"
-            disabled={uploading}
-            className="flex items-center gap-2"
-            asChild
-          >
-            <span>
-              <Upload className="w-4 h-4" />
-              {uploading ? "Uploading..." : "Pilih File"}
-            </span>
-          </Button>
-        </Label>
-        <span className="text-sm text-muted-foreground">
-          Maksimal {maxSize}MB
-        </span>
-      </div>
-
-      {uploading && (
-        <div className="space-y-2">
-          <div className="flex items-center gap-2 text-sm">
-            <span>Uploading...</span>
-            <span>{uploadProgress.toFixed(0)}%</span>
+    <div className={cn('w-full', className)}>
+      {!currentFile ? (
+        <div
+          {...getRootProps()}
+          className={cn(
+            'border-2 border-dashed rounded-lg p-6 text-center cursor-pointer transition-colors',
+            isDragActive
+              ? 'border-primary bg-primary/5'
+              : 'border-gray-300 hover:border-gray-400',
+            disabled && 'opacity-50 cursor-not-allowed',
+            type === 'photo' && 'aspect-square max-w-xs mx-auto'
+          )}
+        >
+          <input {...getInputProps()} />
+          <div className="flex flex-col items-center justify-center space-y-2">
+            <Upload className={cn(
+              'h-10 w-10 text-gray-400',
+              isDragActive && 'text-primary'
+            )} />
+            <div className="text-sm text-gray-600">
+              {isDragActive ? (
+                <p>Lepaskan file di sini...</p>
+              ) : (
+                <div>
+                  <p className="font-medium">
+                    Klik untuk memilih file atau drag & drop
+                  </p>
+                  <p className="text-xs text-gray-500 mt-1">
+                    {type === 'photo' 
+                      ? 'PNG, JPG, WebP hingga 5MB'
+                      : 'PDF, PNG, JPG hingga 5MB'
+                    }
+                  </p>
+                </div>
+              )}
+            </div>
           </div>
-          <Progress value={uploadProgress} className="h-2" />
         </div>
-      )}
-
-      {uploadedFiles.length > 0 && (
-        <div className="space-y-2">
-          <Label className="text-sm font-medium">File yang diupload:</Label>
-          <div className="space-y-2">
-            {uploadedFiles.map((file, index) => (
-              <div
-                key={index}
-                className="flex items-center justify-between p-3 border rounded-lg bg-gray-50"
-              >
-                <div className="flex items-center gap-3">
-                  {getFileIcon(file.type)}
-                  <div className="flex-1 min-w-0">
-                    <p className="text-sm font-medium truncate">
-                      {file.originalName}
-                    </p>
-                    <p className="text-xs text-muted-foreground">
-                      {formatFileSize(file.size)}
-                    </p>
-                  </div>
-                </div>
-                <div className="flex items-center gap-2">
-                  <Badge variant="secondary" className="text-xs">
-                    Uploaded
-                  </Badge>
-                  <Button
-                    type="button"
-                    variant="ghost"
-                    size="sm"
-                    onClick={() => removeFile(index)}
-                    className="h-6 w-6 p-0"
-                  >
-                    <X className="w-3 h-3" />
-                  </Button>
-                </div>
+      ) : (
+        <div className="border rounded-lg p-4">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center space-x-3">
+              {getFileIcon(currentFile)}
+              <div className="flex-1 min-w-0">
+                <p className="text-sm font-medium text-gray-900 truncate">
+                  {currentFile.split('/').pop()}
+                </p>
+                <p className="text-xs text-gray-500">
+                  File berhasil diunggah
+                </p>
               </div>
-            ))}
+            </div>
+            {onFileRemove && (
+              <Button
+                type="button"
+                variant="ghost"
+                size="sm"
+                onClick={onFileRemove}
+                disabled={disabled}
+                className="text-red-500 hover:text-red-700"
+              >
+                <X className="h-4 w-4" />
+              </Button>
+            )}
           </div>
         </div>
       )}
 
-      {uploadType === "photo" && (
-        <div className="flex items-center gap-2 text-xs text-muted-foreground">
-          <AlertCircle className="w-3 h-3" />
-          <span>Hanya file gambar (JPG, PNG, WebP) yang diperbolehkan</span>
+      {isUploading && (
+        <div className="mt-2">
+          <Progress value={uploadProgress} className="h-2" />
+          <p className="text-xs text-gray-500 mt-1">
+            Mengunggah... {uploadProgress}%
+          </p>
         </div>
       )}
 
-      {uploadType === "document" && (
-        <div className="flex items-center gap-2 text-xs text-muted-foreground">
-          <AlertCircle className="w-3 h-3" />
-          <span>Hanya file dokumen (PDF, DOC, DOCX) yang diperbolehkan</span>
+      {fileRejections.length > 0 && (
+        <div className="mt-2">
+          {fileRejections.map(({ file, errors }) => (
+            <div key={file.name} className="text-sm text-red-600">
+              <p className="font-medium">{file.name}</p>
+              <ul className="list-disc list-inside">
+                {errors.map((error) => (
+                  <li key={error.code} className="text-xs">
+                    {error.code === 'file-too-large' && 'File terlalu besar (maksimal 5MB)'}
+                    {error.code === 'file-invalid-type' && 'Tipe file tidak didukung'}
+                    {error.code !== 'file-too-large' && error.code !== 'file-invalid-type' && error.message}
+                  </li>
+                ))}
+              </ul>
+            </div>
+          ))}
         </div>
       )}
     </div>
-  )
+  );
 }

@@ -61,6 +61,21 @@ enum SkpMonthlyStatus {
   REJECTED
 }
 
+enum SkType {
+  PENGANGKATAN
+  MUTASI
+  PROMOSI
+  PEMBERHENTIAN
+}
+
+enum TrainingCategory {
+  TEKNIS
+  MANAJERIAL
+  SOSIAL_KULTURAL
+  FUNGSIONAL
+  KEPEMIMPINAN
+}
+
 
 model User {
   id                String           @id @default(uuid(7))
@@ -86,7 +101,8 @@ model User {
   skp_monthly_entries SkpMonthlyEntry[]
   created_skp_monthly SkpMonthlyEntry[]    @relation("SkpMonthlyCreator")
   supervised_skp_monthly SkpMonthlyEntry[] @relation("SkpMonthlySupervisor")
-
+  profile             Profile?
+  
   @@map("users")
 }
 
@@ -108,8 +124,6 @@ model Attendance {
   @@index([attendance_date])
   @@map("attendances")
 }
-
-
 
 model PerformanceReport {
   id                 String       @id @default(uuid(7))
@@ -211,4 +225,81 @@ model SkpMonthlyFile {
   @@index([entry_id])
   @@index([uploaded_at])
   @@map("skp_monthly_files")
+}
+
+model Profile {
+  id                    String    @id @default(uuid(7))
+  user_id               String    @unique
+  full_name             String?
+  birth_place           String?
+  birth_date            DateTime? @db.Date
+  gender                String?
+  religion              String?
+  marital_status        String?
+  address               String?
+  phone                 String?
+  emergency_contact     String?
+  emergency_phone       String?
+  photo_url             String?
+  education_level       String?
+  education_institution String?
+  education_major       String?
+  education_year        Int?
+  employment_start_date DateTime? @db.Date
+  years_of_service      Int?
+  skills                Json      @default("[]")
+  created_at            DateTime  @default(now())
+  updated_at            DateTime  @updatedAt
+
+  // Relations
+  user            User             @relation(fields: [user_id], references: [id], onDelete: Cascade)
+  sk_history      SkHistory[]
+  training_records TrainingRecord[]
+
+  @@index([user_id])
+  @@map("profiles")
+}
+
+model SkHistory {
+  id          String   @id @default(uuid(7))
+  profile_id  String
+  sk_number   String
+  sk_type     SkType
+  position    String
+  unit        String
+  effective_date DateTime @db.Date
+  file_url    String?
+  description String?
+  created_at  DateTime @default(now())
+  updated_at  DateTime @updatedAt
+
+  // Relations
+  profile Profile @relation(fields: [profile_id], references: [id], onDelete: Cascade)
+
+  @@index([profile_id])
+  @@index([effective_date])
+  @@map("sk_history")
+}
+
+model TrainingRecord {
+  id               String            @id @default(uuid(7))
+  profile_id       String
+  training_name    String
+  category         TrainingCategory
+  organizer        String
+  start_date       DateTime          @db.Date
+  end_date         DateTime          @db.Date
+  duration_hours   Int?
+  certificate_url  String?
+  description      String?
+  created_at       DateTime          @default(now())
+  updated_at       DateTime          @updatedAt
+
+  // Relations
+  profile Profile @relation(fields: [profile_id], references: [id], onDelete: Cascade)
+
+  @@index([profile_id])
+  @@index([start_date])
+  @@index([category])
+  @@map("training_records")
 }

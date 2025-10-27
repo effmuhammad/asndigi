@@ -1,72 +1,61 @@
 import { NextRequest, NextResponse } from "next/server"
-import { auth } from "@/../auth"
+import { auth } from "@/auth"
+import { prisma } from "@/lib/prisma"
+import { z } from "zod"
 
-import { PrismaClient, AttendanceStatus } from "@prisma/client"
-
-const prisma = new PrismaClient()
+// Schema for attendance check-in/check-out
+const attendanceSchema = z.object({
+  location_data: z.object({
+    latitude: z.number(),
+    longitude: z.number(),
+    address: z.string().optional(),
+  }).optional(),
+  photo_url: z.string().optional(),
+})
 
 export async function GET(request: NextRequest) {
   try {
     const session = await auth()
     if (!session?.user?.id) {
-      console.log("No user ID in session")
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
     }
 
     const { searchParams } = new URL(request.url)
-    const startDate = searchParams.get("startDate")
-    const endDate = searchParams.get("endDate")
     const date = searchParams.get("date")
     const limit = searchParams.get("limit")
-    const status = searchParams.get("status")
 
-    const where: any = {
-      user_id: session.user.id
+    let whereClause: any = {
+      user_id: session.user.id,
     }
 
-    // Handle single date query (for today's attendance)
+    // If date is provided, filter by specific date
     if (date) {
       const targetDate = new Date(date)
-      const startOfDay = new Date(targetDate)
-      startOfDay.setHours(0, 0, 0, 0)
-      const endOfDay = new Date(targetDate)
-      endOfDay.setHours(23, 59, 59, 999)
-      
-      where.attendance_date = {
-        gte: startOfDay,
-        lte: endOfDay
-      }
-    }
-    // Handle date range query
-    else if (startDate && endDate) {
-      where.attendance_date = {
-        gte: new Date(startDate),
-        lte: new Date(endDate)
-      }
+      whereClause.attendance_date = targetDate
     }
 
-    if (status && status !== "all") {
-      where.status = status
-    }
-
-    const queryOptions: any = {
-      where,
+    const attendances = await prisma.attendance.findMany({
+      where: whereClause,
       orderBy: {
-        attendance_date: "desc"
-      }
-    }
+        attendance_date: "desc",
+      },
+      take: limit ? parseInt(limit) : undefined,
+      include: {
+        user: {
+          select: {
+            name: true,
+            nip: true,
+          },
+        },
+      },
+    })
 
-    // Add limit if specified
-    if (limit) {
-      queryOptions.take = parseInt(limit)
-    }
-
-    const attendances = await prisma.attendance.findMany(queryOptions)
-
-    // Return in the format expected by frontend
-    return NextResponse.json({ attendance: attendances })
+    return NextResponse.json({
+      success: true,
+      attendance: attendances,
+    })
   } catch (error) {
-    console.error("Error fetching attendances:", error)
+    console.error("Error fetching attendance:", error)
     return NextResponse.json(
       { error: "Internal server error" },
       { status: 500 }
@@ -75,159 +64,165 @@ export async function GET(request: NextRequest) {
 }
 
 export async function POST(request: NextRequest) {
-  console.log("POST /api/attendance - Request received")
-  
   try {
     const session = await auth()
-    console.log("Session check result:", { 
-      hasSession: !!session, 
-      hasUser: !!session?.user, 
-      hasUserId: !!session?.user?.id,
-      userId: session?.user?.id 
-    })
-    
     if (!session?.user?.id) {
-      console.log("Authentication failed - No user ID in session")
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
     }
 
     const body = await request.json()
-    console.log("Request body:", body)
-    const { type, latitude, longitude, photo_url, notes } = body
+    const { action } = body
 
-    if (!type || !latitude || !longitude) {
-      console.log("Missing required fields:", { type, latitude, longitude })
-      return NextResponse.json(
-        { error: "Missing required fields" },
-        { status: 400 }
-      )
-    }
-
-    const today = new Date()
-    today.setHours(0, 0, 0, 0)
-    console.log("Today date:", today)
-
-    // Check if user already has attendance record for today
-    console.log("Checking existing attendance for user:", session.user.id)
-    const existingAttendance = await prisma.attendance.findFirst({
-      where: {
-        user_id: session.user.id,
-        attendance_date: today
-      }
-    })
-    console.log("Existing attendance:", existingAttendance)
-
-    const now = new Date()
-    console.log("Current time:", now)
-
-    if (type === "check_in") {
-      if (existingAttendance) {
-        console.log("User already checked in today")
-        return NextResponse.json(
-          { error: "Already checked in today" },
-          { status: 400 }
-        )
-      }
-
-      // Ambil konfigurasi waktu kerja dari database dengan error handling
-      let workSettings
-      try {
-        console.log("Fetching work settings...")
-        workSettings = await prisma.workSettings.findFirst({
-          where: { is_active: true },
-          orderBy: { updated_at: 'desc' }
-        })
-        console.log("Work settings found:", workSettings)
-      } catch (error) {
-        console.error("Error fetching work settings:", error)
-        workSettings = null
-      }
-      
-      // Fallback ke default jika tidak ada konfigurasi
-      if (!workSettings) {
-        console.log("Using default work settings")
-        workSettings = { work_start_time: '08:00', late_tolerance_minutes: 0 }
-      }
-
-      // Parse waktu mulai kerja dari konfigurasi
-      const [hours, minutes] = workSettings.work_start_time.split(':').map(Number)
-      const workStartTime = new Date()
-      workStartTime.setHours(hours, minutes, 0, 0)
-      
-      // Tambahkan toleransi keterlambatan
-      const toleranceTime = new Date(workStartTime)
-      toleranceTime.setMinutes(toleranceTime.getMinutes() + workSettings.late_tolerance_minutes)
-      
-      // Tentukan status berdasarkan waktu check-in dan toleransi
-      const status = now > toleranceTime ? AttendanceStatus.LATE : AttendanceStatus.PRESENT
-      console.log("Attendance status determined:", status)
-
-      console.log("Creating attendance record with data:", {
-        user_id: session.user.id,
-        attendance_date: today,
-        check_in: now,
-        status,
-        location_data: { latitude, longitude },
-        photo_url
-      })
-
-      const attendance = await prisma.attendance.create({
-        data: {
-          user_id: session.user.id,
-          attendance_date: today,
-          check_in: now,
-          status,
-          location_data: { latitude, longitude },
-          photo_url
-        }
-      })
-
-      console.log("Attendance created successfully:", attendance)
-      return NextResponse.json(attendance, { status: 201 })
-    } else if (type === "check_out") {
-      if (!existingAttendance) {
-        console.log("No check-in record found for check-out")
-        return NextResponse.json(
-          { error: "No check-in record found for today" },
-          { status: 400 }
-        )
-      }
-
-      if (existingAttendance.check_out) {
-        console.log("User already checked out today")
-        return NextResponse.json(
-          { error: "Already checked out today" },
-          { status: 400 }
-        )
-      }
-
-      console.log("Updating attendance for check-out")
-      const updatedAttendance = await prisma.attendance.update({
-        where: { id: existingAttendance.id },
-        data: {
-          check_out: now,
-          location_data: { 
-            ...existingAttendance.location_data as any, 
-            checkout_latitude: latitude, 
-            checkout_longitude: longitude 
-          }
-        }
-      })
-
-      console.log("Check-out successful:", updatedAttendance)
-      return NextResponse.json(updatedAttendance)
+    if (action === "check-in") {
+      return await handleCheckIn(session.user.id, body)
+    } else if (action === "check-out") {
+      return await handleCheckOut(session.user.id, body)
     } else {
-      console.log("Invalid attendance type:", type)
       return NextResponse.json(
-        { error: "Invalid attendance type" },
+        { error: "Invalid action. Use 'check-in' or 'check-out'" },
         { status: 400 }
       )
     }
   } catch (error) {
-    console.error("Error in POST /api/attendance:", error)
-    console.error("Error stack:", (error as Error).stack)
+    console.error("Error processing attendance:", error)
     return NextResponse.json(
-      { error: "Internal server error", details: (error as Error).message },
+      { error: "Internal server error" },
+      { status: 500 }
+    )
+  }
+}
+
+async function handleCheckIn(userId: string, data: any) {
+  try {
+    const validatedData = attendanceSchema.parse(data)
+    const today = new Date()
+    today.setHours(0, 0, 0, 0)
+
+    // Check if user already checked in today
+    const existingAttendance = await prisma.attendance.findFirst({
+      where: {
+        user_id: userId,
+        attendance_date: today,
+      },
+    })
+
+    if (existingAttendance) {
+      return NextResponse.json(
+        { error: "Already checked in today" },
+        { status: 400 }
+      )
+    }
+
+    // Determine attendance status based on check-in time
+    const now = new Date()
+    const workStartTime = new Date()
+    workStartTime.setHours(8, 0, 0, 0) // 8:00 AM
+
+    let status = "PRESENT"
+    if (now > workStartTime) {
+      status = "LATE"
+    }
+
+    const attendance = await prisma.attendance.create({
+      data: {
+        user_id: userId,
+        attendance_date: today,
+        check_in: now,
+        status: status as any,
+        location_data: validatedData.location_data,
+        photo_url: validatedData.photo_url,
+      },
+      include: {
+        user: {
+          select: {
+            name: true,
+            nip: true,
+          },
+        },
+      },
+    })
+
+    return NextResponse.json({
+      success: true,
+      message: "Check-in successful",
+      attendance,
+    })
+  } catch (error) {
+    console.error("Error during check-in:", error)
+    return NextResponse.json(
+      { error: "Failed to check in" },
+      { status: 500 }
+    )
+  }
+}
+
+async function handleCheckOut(userId: string, data: any) {
+  try {
+    const validatedData = attendanceSchema.parse(data)
+    const today = new Date()
+    today.setHours(0, 0, 0, 0)
+
+    // Find today's attendance record
+    const existingAttendance = await prisma.attendance.findFirst({
+      where: {
+        user_id: userId,
+        attendance_date: today,
+      },
+    })
+
+    if (!existingAttendance) {
+      return NextResponse.json(
+        { error: "No check-in record found for today" },
+        { status: 400 }
+      )
+    }
+
+    if (existingAttendance.check_out) {
+      return NextResponse.json(
+        { error: "Already checked out today" },
+        { status: 400 }
+      )
+    }
+
+    // Determine if it's early leave
+    const now = new Date()
+    const workEndTime = new Date()
+    workEndTime.setHours(17, 0, 0, 0) // 5:00 PM
+
+    let status = existingAttendance.status
+    if (now < workEndTime && status === "PRESENT") {
+      status = "EARLY_LEAVE"
+    }
+
+    const updatedAttendance = await prisma.attendance.update({
+      where: {
+        id: existingAttendance.id,
+      },
+      data: {
+        check_out: now,
+        status: status as any,
+        location_data: validatedData.location_data || (existingAttendance.location_data as any),
+        photo_url: validatedData.photo_url || existingAttendance.photo_url,
+      },
+      include: {
+        user: {
+          select: {
+            name: true,
+            nip: true,
+          },
+        },
+      },
+    })
+
+    return NextResponse.json({
+      success: true,
+      message: "Check-out successful",
+      attendance: updatedAttendance,
+    })
+  } catch (error) {
+    console.error("Error during check-out:", error)
+    return NextResponse.json(
+      { error: "Failed to check out" },
       { status: 500 }
     )
   }

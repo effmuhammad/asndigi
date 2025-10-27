@@ -61,6 +61,7 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
   callbacks: {
     async jwt({ token, user }) {
       if (user) {
+        token.id = user.id  // Store the actual database user ID
         token.role = user.role
         token.work_unit = user.work_unit
         token.position = user.position
@@ -69,7 +70,7 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
     },
     async session({ session, token }) {
       if (token) {
-        session.user.id = token.sub!
+        session.user.id = token.id as string  // Use the stored database user ID
         session.user.role = token.role as string
         session.user.work_unit = token.work_unit as string
         session.user.position = token.position as string

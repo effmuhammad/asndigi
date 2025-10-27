@@ -188,15 +188,15 @@ export default function ManajemenPenggunaPage() {
   }
 
   return (
-    <div className="container mx-auto py-6 space-y-6">
-      <div className="flex items-center justify-between">
+    <div className="space-y-6">
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
           <h1 className="text-3xl font-bold tracking-tight">Manajemen Pengguna</h1>
           <p className="text-muted-foreground">
             Kelola pengguna sistem PRIMA ASN
           </p>
         </div>
-        <Button onClick={handleAddNew}>
+        <Button onClick={handleAddNew} className="w-fit">
           <Plus className="h-4 w-4 mr-2" />
           Tambah Pengguna
         </Button>
@@ -228,16 +228,17 @@ export default function ManajemenPenggunaPage() {
               <Loader2 className="h-8 w-8 animate-spin" />
             </div>
           ) : (
-            <Table>
+            <div className="overflow-x-auto">
+              <Table className="min-w-[800px]">
               <TableHeader>
                 <TableRow>
-                  <TableHead>NIP</TableHead>
-                  <TableHead>Nama</TableHead>
-                  <TableHead>Email</TableHead>
-                  <TableHead>Role</TableHead>
-                  <TableHead>Unit Kerja</TableHead>
-                  <TableHead>Jabatan</TableHead>
-                  <TableHead>Aksi</TableHead>
+                  <TableHead className="min-w-[120px]">NIP</TableHead>
+                  <TableHead className="min-w-[150px]">Nama</TableHead>
+                  <TableHead className="min-w-[200px]">Email</TableHead>
+                  <TableHead className="min-w-[100px]">Role</TableHead>
+                  <TableHead className="min-w-[150px]">Unit Kerja</TableHead>
+                  <TableHead className="min-w-[120px]">Jabatan</TableHead>
+                  <TableHead className="min-w-[120px]">Aksi</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -307,6 +308,7 @@ export default function ManajemenPenggunaPage() {
                 )}
               </TableBody>
             </Table>
+            </div>
           )}
         </CardContent>
       </Card>
