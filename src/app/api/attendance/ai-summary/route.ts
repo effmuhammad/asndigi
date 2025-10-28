@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server"
-import { auth } from "@/auth"
+import { auth } from "../../../../../auth"
 import { prisma } from "@/lib/prisma"
 import { generateAttendanceSummary, AttendanceSummaryData } from "@/lib/openai"
 import { z } from "zod"
@@ -121,7 +121,7 @@ export async function POST(request: NextRequest) {
         check_in: record.check_in ? record.check_in.toLocaleTimeString('id-ID') : null,
         check_out: record.check_out ? record.check_out.toLocaleTimeString('id-ID') : null,
         status: record.status,
-        location_data: record.location_data,
+        location_data: record.location_data as Record<string, unknown> | undefined,
         working_hours: Math.round(workingHours * 100) / 100
       }
     })

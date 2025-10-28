@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { auth } from '@/auth'
+import { auth } from '../../../../auth'
 import { prisma } from '@/lib/prisma'
 
 // GET - Ambil semua laporan kinerja organisasi
@@ -133,9 +133,6 @@ async function calculateOrganizationalPerformance(year: number) {
       }
     },
     _count: {
-      id: true
-    },
-    _sum: {
       id: true
     }
   })

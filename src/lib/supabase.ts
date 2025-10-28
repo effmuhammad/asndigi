@@ -20,7 +20,7 @@ export async function uploadPhotoToSupabase(file: File, userId: string): Promise
     const filePath = `attendance-photos/${fileName}`
 
     // Upload file to Supabase storage
-    const { data, error } = await supabase.storage
+    const { error } = await supabase.storage
       .from('attendance-photos')
       .upload(filePath, file, {
         cacheControl: '3600',

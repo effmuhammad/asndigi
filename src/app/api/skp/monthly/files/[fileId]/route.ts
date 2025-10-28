@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server"
-import { auth } from "@/auth"
+import { auth } from "../../../../../../../auth"
 import { prisma } from "@/lib/prisma"
 import { unlink } from "fs/promises"
 import { join } from "path"
@@ -8,9 +8,10 @@ import { existsSync } from "fs"
 // DELETE - Hapus file Sasaran Kinerja Pegawai
 export async function DELETE(
   request: NextRequest,
-  { params }: { params: { fileId: string } }
+  { params }: { params: Promise<{ fileId: string }> }
 ) {
   try {
+    const { fileId } = await params;
     const session = await auth()
     if (!session?.user?.id) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
@@ -18,7 +19,7 @@ export async function DELETE(
 
     // Get file info and check if it exists
     const file = await prisma.skpMonthlyFile.findUnique({
-      where: { id: params.fileId },
+      where: { id: fileId },
       include: {
         entry: true
       }
@@ -55,7 +56,7 @@ export async function DELETE(
 
     // Delete file record from database
     await prisma.skpMonthlyFile.delete({
-      where: { id: params.fileId }
+      where: { id: fileId }
     })
 
     return NextResponse.json({

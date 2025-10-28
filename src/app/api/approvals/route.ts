@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server"
-import { auth } from "@/../auth"
+import { auth } from "../../../../auth"
 
 import { PrismaClient } from "@prisma/client"
 
@@ -15,7 +15,7 @@ export async function GET(request: NextRequest) {
     const { searchParams } = new URL(request.url)
     const status = searchParams.get("status")
 
-    const where: any = {
+    const where: Record<string, unknown> = {
       approver_id: session.user.id
     }
 

@@ -17,8 +17,8 @@ import { User, Edit, Save, X, Camera } from "lucide-react"
 import { profileSchema, type ProfileFormData, GENDER_OPTIONS, RELIGION_OPTIONS, MARITAL_STATUS_OPTIONS, EDUCATION_LEVEL_OPTIONS } from "@/lib/validations/profile"
 
 interface PersonalDataTabProps {
-  profileData: any
-  onUpdate: (data: any) => void
+  profileData: unknown
+  onUpdate: (data: unknown) => void
 }
 
 export function PersonalDataTab({ profileData, onUpdate }: PersonalDataTabProps) {
@@ -92,7 +92,7 @@ export function PersonalDataTab({ profileData, onUpdate }: PersonalDataTabProps)
       } else {
         throw new Error('Upload failed')
       }
-    } catch (error) {
+    } catch (error: unknown) {
       console.error('Error uploading photo:', error)
       toast.error('Gagal mengupload foto')
       return null
@@ -132,7 +132,7 @@ export function PersonalDataTab({ profileData, onUpdate }: PersonalDataTabProps)
         const error = await response.json()
         toast.error(error.message || 'Gagal memperbarui profil')
       }
-    } catch (error) {
+    } catch (error: unknown) {
       console.error('Error updating profile:', error)
       toast.error('Terjadi kesalahan saat memperbarui profil')
     } finally {

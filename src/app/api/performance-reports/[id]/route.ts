@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server"
-import { auth } from "@/../auth"
+import { auth } from "../../../../../auth"
 
 import { PrismaClient } from "@prisma/client"
 
@@ -89,7 +89,7 @@ export async function PUT(
     }
 
     // Only allow updates if status is draft
-    if (existingReport.status !== "draft") {
+    if (existingReport.status !== "DRAFT") {
       return NextResponse.json(
         { error: "Cannot update submitted report" },
         { status: 400 }
@@ -142,7 +142,7 @@ export async function DELETE(
     }
 
     // Only allow deletion if status is draft
-    if (existingReport.status !== "draft") {
+    if (existingReport.status !== "DRAFT") {
       return NextResponse.json(
         { error: "Cannot delete submitted report" },
         { status: 400 }

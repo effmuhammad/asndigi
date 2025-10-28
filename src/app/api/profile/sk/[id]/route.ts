@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { auth } from '@/auth';
+import { auth } from '../../../../../../auth';
 import { prisma } from '@/lib/prisma';
 import { z } from 'zod';
 
@@ -17,9 +17,10 @@ const skHistorySchema = z.object({
 // PUT - Update SK record
 export async function PUT(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
+    const { id } = await params;
     const session = await auth();
     
     if (!session?.user?.id) {
@@ -40,7 +41,7 @@ export async function PUT(
 
     const skRecord = await prisma.skHistory.findFirst({
       where: {
-        id: params.id,
+        id,
         profile_id: profile.id,
       }
     });
@@ -50,7 +51,7 @@ export async function PUT(
     }
 
     const updatedRecord = await prisma.skHistory.update({
-      where: { id: params.id },
+      where: { id },
       data: {
         sk_number: validatedData.sk_number,
         sk_type: validatedData.sk_type,
@@ -76,37 +77,39 @@ export async function PUT(
 // DELETE - Delete SK record
 export async function DELETE(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
+    const { id } = await params;
     const session = await auth();
     
     if (!session?.user?.id) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    // Verify ownership
+    // Get user profile
     const profile = await prisma.profile.findUnique({
-      where: { user_id: session.user.id },
+      where: { user_id: session.user.id }
     });
 
     if (!profile) {
       return NextResponse.json({ error: 'Profile not found' }, { status: 404 });
     }
 
-    const skRecord = await prisma.skHistory.findFirst({
+    // Check if SK record exists and belongs to user
+    const existingSK = await prisma.skHistory.findFirst({
       where: {
-        id: params.id,
+        id,
         profile_id: profile.id,
       }
     });
 
-    if (!skRecord) {
+    if (!existingSK) {
       return NextResponse.json({ error: 'SK record not found' }, { status: 404 });
     }
 
     await prisma.skHistory.delete({
-      where: { id: params.id }
+      where: { id }
     });
 
     return NextResponse.json({ message: 'SK record deleted successfully' });

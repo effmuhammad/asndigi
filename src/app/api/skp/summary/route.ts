@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server"
-import { auth } from "@/auth"
+import { auth } from "../../../../../auth"
 import { prisma } from "@/lib/prisma"
 import { generateSkpSummary, type SkpSummaryData } from "@/lib/openai"
 import { z } from "zod"
@@ -67,7 +67,7 @@ export async function POST(request: NextRequest) {
     }
 
     // Build where clause for SKP entries
-    const whereClause: any = {
+    const whereClause: Record<string, unknown> = {
       user_id: targetUserId,
       year: year,
     }
@@ -229,7 +229,7 @@ export async function GET(request: NextRequest) {
     }
 
     // Build where clause
-    const whereClause: any = {
+    const whereClause: Record<string, unknown> = {
       user_id: targetUserId,
       year: year,
     }

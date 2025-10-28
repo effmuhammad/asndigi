@@ -73,8 +73,8 @@ export default function ProfilePage() {
     }
   }
 
-  const handleProfileUpdate = (updatedData: Partial<ProfileData>) => {
-    setProfileData(prev => prev ? { ...prev, ...updatedData } : null)
+  const handleProfileUpdate = (updatedData: unknown) => {
+    setProfileData(prev => prev ? { ...prev, ...(updatedData as Partial<ProfileData>) } : null)
   }
 
   if (isLoading) {

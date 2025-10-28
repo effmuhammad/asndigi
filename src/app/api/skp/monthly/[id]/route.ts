@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server"
-import { auth } from "@/auth"
+import { auth } from "../../../../../../auth"
 import { prisma } from "@/lib/prisma"
 import { z } from "zod"
 
@@ -16,16 +16,17 @@ const updateSkpMonthlySchema = z.object({
 // GET - Ambil detail Sasaran Kinerja Pegawai berdasarkan ID
 export async function GET(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
+    const { id } = await params;
     const session = await auth()
     if (!session?.user?.id) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
     }
 
     const entry = await prisma.skpMonthlyEntry.findUnique({
-      where: { id: params.id },
+      where: { id },
       include: {
         user: {
           select: { name: true, nip: true }
@@ -73,9 +74,10 @@ export async function GET(
 // PUT - Update Sasaran Kinerja Pegawai
 export async function PUT(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
+    const { id } = await params;
     const session = await auth()
     if (!session?.user?.id) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
@@ -86,7 +88,7 @@ export async function PUT(
 
     // Check if entry exists and get current data
     const existingEntry = await prisma.skpMonthlyEntry.findUnique({
-      where: { id: params.id },
+      where: { id },
       include: {
         user: {
           select: { role: true }
@@ -114,7 +116,7 @@ export async function PUT(
     }
 
     // Prepare update data
-    const updateData: any = {}
+    const updateData: Record<string, unknown> = {}
     
     if (validatedData.indicator !== undefined) updateData.indicator = validatedData.indicator
     if (validatedData.actionPlan !== undefined) updateData.action_plan = validatedData.actionPlan
@@ -126,7 +128,7 @@ export async function PUT(
     updateData.updated_at = new Date()
 
     const updatedEntry = await prisma.skpMonthlyEntry.update({
-      where: { id: params.id },
+      where: { id },
       data: updateData,
       include: {
         user: {
@@ -148,7 +150,7 @@ export async function PUT(
   } catch (error) {
     if (error instanceof z.ZodError) {
       return NextResponse.json(
-        { error: "Validation error", details: error.errors },
+        { error: "Validation error", details: error.issues },
         { status: 400 }
       )
     }
@@ -164,9 +166,10 @@ export async function PUT(
 // DELETE - Hapus Sasaran Kinerja Pegawai
 export async function DELETE(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
+    const { id } = await params;
     const session = await auth()
     if (!session?.user?.id) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
@@ -174,7 +177,7 @@ export async function DELETE(
 
     // Check if entry exists
     const existingEntry = await prisma.skpMonthlyEntry.findUnique({
-      where: { id: params.id }
+      where: { id }
     })
 
     if (!existingEntry) {
@@ -197,7 +200,7 @@ export async function DELETE(
 
     // Delete the entry (files will be deleted automatically due to cascade)
     await prisma.skpMonthlyEntry.delete({
-      where: { id: params.id }
+      where: { id }
     })
 
     return NextResponse.json({

@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server"
-import { auth } from "@/auth"
+import { auth } from "../../../../auth"
 import { prisma } from "@/lib/prisma"
 import { z } from "zod"
 import { generateSupervisorRecommendations } from "@/lib/openai-annual-performance"
@@ -54,7 +54,7 @@ export async function GET(request: NextRequest) {
       select: { role: true }
     })
 
-    let whereClause: any = {}
+    const whereClause: Record<string, any> = {}
 
     if (reportId) {
       whereClause.annual_report_id = reportId

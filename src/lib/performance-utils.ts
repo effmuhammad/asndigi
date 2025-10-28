@@ -32,13 +32,13 @@ export function calculatePerformancePredicate(
 /**
  * Calculate attendance percentage from attendance summary data
  */
-export function calculateAttendancePercentage(attendanceSummary: any): number {
+export function calculateAttendancePercentage(attendanceSummary: Record<string, unknown>): number {
   if (!attendanceSummary || typeof attendanceSummary !== 'object') {
     return 0
   }
 
-  const totalDays = attendanceSummary.total_days || 0
-  const presentDays = attendanceSummary.present_days || 0
+  const totalDays = Number(attendanceSummary.total_days) || 0
+  const presentDays = Number(attendanceSummary.present_days) || 0
 
   if (totalDays === 0) return 0
   
@@ -48,13 +48,13 @@ export function calculateAttendancePercentage(attendanceSummary: any): number {
 /**
  * Calculate SKP completion percentage from SKP summary data
  */
-export function calculateSkpCompletionPercentage(skpSummary: any): number {
+export function calculateSkpCompletionPercentage(skpSummary: Record<string, unknown>): number {
   if (!skpSummary || typeof skpSummary !== 'object') {
     return 0
   }
 
-  const totalItems = skpSummary.total_items || 0
-  const completedItems = skpSummary.completed_items || 0
+  const totalItems = Number(skpSummary.total_items) || 0
+  const completedItems = Number(skpSummary.completed_items) || 0
 
   if (totalItems === 0) return 0
   
@@ -146,8 +146,8 @@ export function generatePerformanceSummaryText(
  * Validate performance report data
  */
 export function validatePerformanceReportData(data: {
-  attendanceSummary: any
-  skpSummary: any
+  attendanceSummary: Record<string, unknown>
+  skpSummary: Record<string, unknown>
   workResultRating: WorkResultRating
   behaviorRating: BehaviorRating
 }): { isValid: boolean; errors: string[] } {

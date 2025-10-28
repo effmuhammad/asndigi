@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server"
-import { auth } from "@/auth"
+import { auth } from "../../../../../auth"
 import { prisma } from "@/lib/prisma"
 import { z } from "zod"
 import { 
@@ -23,8 +23,9 @@ const updateAnnualPerformanceReportSchema = z.object({
 // GET - Fetch specific annual performance report
 export async function GET(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
+  const { id } = await params
   try {
     const session = await auth()
     if (!session?.user?.id) {
@@ -32,7 +33,7 @@ export async function GET(
     }
 
     const report = await prisma.annualPerformanceReport.findUnique({
-      where: { id: params.id },
+      where: { id },
       include: {
         user: {
           select: { name: true, nip: true, position: true, work_unit: true, supervisor_id: true }
@@ -90,8 +91,9 @@ export async function GET(
 // PUT - Update annual performance report
 export async function PUT(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
+  const { id } = await params
   try {
     const session = await auth()
     if (!session?.user?.id) {
@@ -103,7 +105,7 @@ export async function PUT(
 
     // Check if report exists
     const existingReport = await prisma.annualPerformanceReport.findUnique({
-      where: { id: params.id },
+      where: { id },
       include: {
         user: {
           select: { supervisor_id: true }
@@ -131,7 +133,7 @@ export async function PUT(
     }
 
     // Prepare update data
-    const updateData: any = {}
+    const updateData: Record<string, unknown> = {}
     
     if (validatedData.self_assessment !== undefined) updateData.self_assessment = validatedData.self_assessment
     if (validatedData.achievements !== undefined) updateData.achievements = validatedData.achievements
@@ -169,7 +171,7 @@ export async function PUT(
 
     // Update the report
     const updatedReport = await prisma.annualPerformanceReport.update({
-      where: { id: params.id },
+      where: { id },
       data: updateData,
       include: {
         user: {
@@ -217,8 +219,9 @@ export async function PUT(
 // DELETE - Delete annual performance report
 export async function DELETE(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
+  const { id } = await params
   try {
     const session = await auth()
     if (!session?.user?.id) {
@@ -227,7 +230,7 @@ export async function DELETE(
 
     // Check if report exists
     const existingReport = await prisma.annualPerformanceReport.findUnique({
-      where: { id: params.id },
+      where: { id },
       select: { 
         user_id: true, 
         status: true,
@@ -259,7 +262,7 @@ export async function DELETE(
 
     // Delete the report (cascade will handle related records)
     await prisma.annualPerformanceReport.delete({
-      where: { id: params.id }
+      where: { id }
     })
 
     return NextResponse.json({

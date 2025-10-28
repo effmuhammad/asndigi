@@ -1,13 +1,14 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { auth } from '@/auth'
+import { auth } from '../../../../../../auth'
 import { prisma } from '@/lib/prisma'
 import bcrypt from 'bcryptjs'
 
 // GET - Mengambil detail user berdasarkan ID (hanya admin)
 export async function GET(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
+  const { id } = await params
   try {
     const session = await auth()
     
@@ -19,7 +20,7 @@ export async function GET(
     }
 
     const user = await prisma.user.findUnique({
-      where: { id: params.id },
+      where: { id },
       select: {
         id: true,
         nip: true,
@@ -53,8 +54,9 @@ export async function GET(
 // PUT - Update user berdasarkan ID (hanya admin)
 export async function PUT(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
+  const { id } = await params
   try {
     const session = await auth()
     
@@ -78,7 +80,7 @@ export async function PUT(
 
     // Cek apakah user ada
     const existingUser = await prisma.user.findUnique({
-      where: { id: params.id }
+      where: { id }
     })
 
     if (!existingUser) {
@@ -92,7 +94,7 @@ export async function PUT(
     const duplicateUser = await prisma.user.findFirst({
       where: {
         AND: [
-          { id: { not: params.id } },
+          { id: { not: id } },
           {
             OR: [
               { nip },
@@ -111,7 +113,7 @@ export async function PUT(
     }
 
     // Prepare update data
-    const updateData: any = {
+    const updateData: Record<string, unknown> = {
       nip,
       name,
       email,
@@ -127,7 +129,7 @@ export async function PUT(
 
     // Update user
     const updatedUser = await prisma.user.update({
-      where: { id: params.id },
+      where: { id },
       data: updateData,
       select: {
         id: true,
@@ -155,8 +157,9 @@ export async function PUT(
 // DELETE - Hapus user berdasarkan ID (hanya admin)
 export async function DELETE(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
+  const { id } = await params
   try {
     const session = await auth()
     
@@ -169,7 +172,7 @@ export async function DELETE(
 
     // Cek apakah user ada
     const existingUser = await prisma.user.findUnique({
-      where: { id: params.id }
+      where: { id }
     })
 
     if (!existingUser) {
@@ -189,7 +192,7 @@ export async function DELETE(
 
     // Hapus user
     await prisma.user.delete({
-      where: { id: params.id }
+      where: { id }
     })
 
     return NextResponse.json(

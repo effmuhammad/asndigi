@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server"
-import { auth } from "@/auth"
+import { auth } from "../../../../auth"
 import { prisma } from "@/lib/prisma"
 import { z } from "zod"
 
@@ -24,7 +24,7 @@ export async function GET(request: NextRequest) {
     const date = searchParams.get("date")
     const limit = searchParams.get("limit")
 
-    let whereClause: any = {
+    const whereClause: Record<string, unknown> = {
       user_id: session.user.id,
     }
 
@@ -92,7 +92,7 @@ export async function POST(request: NextRequest) {
   }
 }
 
-async function handleCheckIn(userId: string, data: any) {
+async function handleCheckIn(userId: string, data: unknown) {
   try {
     const validatedData = attendanceSchema.parse(data)
     const today = new Date()
@@ -128,7 +128,7 @@ async function handleCheckIn(userId: string, data: any) {
         user_id: userId,
         attendance_date: today,
         check_in: now,
-        status: status as any,
+        status: status as "PRESENT" | "LATE" | "ABSENT",
         location_data: validatedData.location_data,
         photo_url: validatedData.photo_url,
       },
@@ -156,7 +156,7 @@ async function handleCheckIn(userId: string, data: any) {
   }
 }
 
-async function handleCheckOut(userId: string, data: any) {
+async function handleCheckOut(userId: string, data: unknown) {
   try {
     const validatedData = attendanceSchema.parse(data)
     const today = new Date()
@@ -200,8 +200,8 @@ async function handleCheckOut(userId: string, data: any) {
       },
       data: {
         check_out: now,
-        status: status as any,
-        location_data: validatedData.location_data || (existingAttendance.location_data as any),
+        status: status as "PRESENT" | "LATE" | "ABSENT",
+        location_data: validatedData.location_data || existingAttendance.location_data || undefined,
         photo_url: validatedData.photo_url || existingAttendance.photo_url,
       },
       include: {

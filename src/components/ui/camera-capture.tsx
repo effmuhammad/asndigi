@@ -3,7 +3,7 @@
 import { useState, useRef, useCallback, useEffect } from "react"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent } from "@/components/ui/card"
-import { Camera, RotateCcw, Check, X } from "lucide-react"
+import { Camera, RotateCcw, X } from "lucide-react"
 import { toast } from "sonner"
 
 interface CameraCaptureProps {
@@ -179,28 +179,33 @@ export function CameraCapture({ onCapture, onCancel, className = "" }: CameraCap
           }
         }, 3000)
         
-      } catch (videoError: any) {
+      } catch (videoError: unknown) {
          console.error("🎥 Video element error:", videoError)
-         setDebugInfo(`Error: ${videoError.message}`)
+         setDebugInfo(`Error: ${videoError instanceof Error ? videoError.message : 'Unknown error'}`)
          setIsLoading(false)
          toast.error("Video element tidak dapat diakses")
        }
       
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error("🎥 Error accessing camera:", error)
       setIsLoading(false)
       
       let errorMessage = "Tidak dapat mengakses kamera."
       
-      if (error.name === "NotAllowedError" || error.name === "PermissionDeniedError") {
-        errorMessage = "Akses kamera ditolak. Silakan izinkan akses kamera di browser."
-      } else if (error.name === "NotFoundError" || error.name === "DevicesNotFoundError") {
-        errorMessage = "Kamera tidak ditemukan. Pastikan kamera terhubung."
-      } else if (error.name === "NotReadableError" || error.name === "TrackStartError") {
-        errorMessage = "Kamera sedang digunakan aplikasi lain."
-      } else if (error.name === "OverconstrainedError" || error.name === "ConstraintNotSatisfiedError") {
-        errorMessage = "Kamera tidak mendukung pengaturan yang diminta."
-      } else if (error.message) {
+      if (error && typeof error === 'object' && 'name' in error) {
+        const errorName = (error as { name: string }).name;
+        if (errorName === "NotAllowedError" || errorName === "PermissionDeniedError") {
+          errorMessage = "Akses kamera ditolak. Silakan izinkan akses kamera di browser."
+        } else if (errorName === "NotFoundError" || errorName === "DevicesNotFoundError") {
+          errorMessage = "Kamera tidak ditemukan. Pastikan kamera terhubung."
+        } else if (errorName === "NotReadableError" || errorName === "TrackStartError") {
+          errorMessage = "Kamera sedang digunakan aplikasi lain."
+        } else if (errorName === "OverconstrainedError" || errorName === "ConstraintNotSatisfiedError") {
+          errorMessage = "Kamera tidak mendukung pengaturan yang diminta."
+        }
+      }
+      
+      if (error instanceof Error && error.message) {
         errorMessage = error.message
       }
       

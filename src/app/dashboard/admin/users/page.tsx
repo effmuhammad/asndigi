@@ -60,7 +60,7 @@ export default function ManajemenPenggunaPage() {
   // Redirect jika bukan admin
   useEffect(() => {
     if (status === 'loading') return
-    if (!session || session.user.role !== 'ADMIN') {
+    if (!session || (session.user as any)?.role !== 'ADMIN') {
       router.push('/dashboard')
       return
     }
@@ -85,7 +85,7 @@ export default function ManajemenPenggunaPage() {
   }
 
   useEffect(() => {
-    if (session?.user.role === 'ADMIN') {
+    if ((session?.user as any)?.role === 'ADMIN') {
       fetchUsers()
     }
   }, [session])
@@ -179,7 +179,7 @@ export default function ManajemenPenggunaPage() {
   }
 
   // Loading state
-  if (status === 'loading' || !session || session.user.role !== 'ADMIN') {
+  if (status === 'loading' || !session || (session.user as any)?.role !== 'ADMIN') {
     return (
       <div className="flex items-center justify-center min-h-screen">
         <Loader2 className="h-8 w-8 animate-spin" />

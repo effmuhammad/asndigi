@@ -10,15 +10,15 @@ import { Input } from "@/components/ui/input"
 import { Textarea } from "@/components/ui/textarea"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form"
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog"
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { Badge } from "@/components/ui/badge"
 import { FileUpload } from "@/components/ui/file-upload"
 import { FileText, Plus, Edit, Trash2, Download, Calendar, Building } from "lucide-react"
 import { skHistorySchema, type SkHistoryFormData, SK_TYPE_OPTIONS } from "@/lib/validations/profile"
 
 interface SkHistoryTabProps {
-  profileData: any
-  onUpdate: (data: any) => void
+  profileData: unknown
+  onUpdate: (data: unknown) => void
 }
 
 interface SkRecord {
@@ -67,7 +67,7 @@ export function SkHistoryTab({ profileData, onUpdate }: SkHistoryTabProps) {
         const data = await response.json()
         setSkRecords(data)
       }
-    } catch (error) {
+    } catch (error: unknown) {
       console.error('Error fetching SK history:', error)
     }
   }
@@ -89,7 +89,7 @@ export function SkHistoryTab({ profileData, onUpdate }: SkHistoryTabProps) {
       } else {
         throw new Error('Upload failed')
       }
-    } catch (error) {
+    } catch (error: unknown) {
       console.error('Error uploading document:', error)
       toast.error('Gagal mengupload dokumen')
       return null
@@ -142,7 +142,7 @@ export function SkHistoryTab({ profileData, onUpdate }: SkHistoryTabProps) {
         const error = await response.json()
         toast.error(error.message || 'Gagal menghapus data SK')
       }
-    } catch (error) {
+    } catch (error: unknown) {
       console.error('Error deleting SK record:', error)
       toast.error('Terjadi kesalahan saat menghapus data SK')
     } finally {
@@ -204,7 +204,7 @@ export function SkHistoryTab({ profileData, onUpdate }: SkHistoryTabProps) {
         const error = await response.json()
         toast.error(error.message || 'Gagal menyimpan data SK')
       }
-    } catch (error) {
+    } catch (error: unknown) {
       console.error('Error saving SK record:', error)
       toast.error('Terjadi kesalahan saat menyimpan data SK')
     } finally {

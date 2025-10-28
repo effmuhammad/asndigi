@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server"
-import { auth } from "@/../auth"
+import { auth } from "../../../../../../auth"
 
 import { PrismaClient } from "@prisma/client"
 
@@ -32,7 +32,7 @@ export async function POST(
     }
 
     // Only allow submission if status is draft
-    if (existingReport.status !== "draft") {
+    if (existingReport.status !== "DRAFT") {
       return NextResponse.json(
         { error: "Report already submitted" },
         { status: 400 }
@@ -56,7 +56,7 @@ export async function POST(
     const updatedReport = await prisma.performanceReport.update({
       where: { id: id },
       data: {
-        status: "submitted"
+        status: "SUBMITTED"
       }
     })
 
@@ -65,7 +65,7 @@ export async function POST(
       data: {
         report_id: id,
         approver_id: user.supervisor_id,
-        status: "pending"
+        status: "PENDING"
       }
     })
 

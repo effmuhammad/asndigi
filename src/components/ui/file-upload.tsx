@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useCallback, useState } from 'react';
+import React, { useCallback } from 'react';
 import { useDropzone } from 'react-dropzone';
 import { Upload, X, File, Image, FileText } from 'lucide-react';
 import { Button } from '@/components/ui/button';
@@ -31,8 +31,7 @@ export function FileUpload({
   className,
   disabled = false
 }: FileUploadProps) {
-  const [uploadProgress, setUploadProgress] = useState(0);
-  const [isUploading, setIsUploading] = useState(false);
+
 
   const onDrop = useCallback((acceptedFiles: File[]) => {
     if (acceptedFiles.length > 0 && !disabled) {
@@ -46,26 +45,20 @@ export function FileUpload({
     accept,
     maxSize,
     multiple: false,
-    disabled: disabled || isUploading
+    disabled: disabled
   });
 
   const getFileIcon = (fileName: string) => {
     const extension = fileName.split('.').pop()?.toLowerCase();
     if (['jpg', 'jpeg', 'png', 'webp'].includes(extension || '')) {
-      return <Image className="h-8 w-8 text-blue-500" />;
+      return <Image className="h-8 w-8 text-blue-500" alt="Image file" />;
     } else if (extension === 'pdf') {
       return <FileText className="h-8 w-8 text-red-500" />;
     }
     return <File className="h-8 w-8 text-gray-500" />;
   };
 
-  const formatFileSize = (bytes: number) => {
-    if (bytes === 0) return '0 Bytes';
-    const k = 1024;
-    const sizes = ['Bytes', 'KB', 'MB', 'GB'];
-    const i = Math.floor(Math.log(bytes) / Math.log(k));
-    return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
-  };
+
 
   return (
     <div className={cn('w-full', className)}>

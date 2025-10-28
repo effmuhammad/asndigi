@@ -163,9 +163,9 @@ export default function LaporanKinerjaPage() {
         improvement_plan: ""
       })
       toast.success("Laporan kinerja berhasil dibuat")
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error('Error creating report:', error)
-      toast.error(error.message || 'Gagal membuat laporan kinerja')
+      toast.error(error instanceof Error ? error.message : 'Gagal membuat laporan kinerja')
     } finally {
       setIsSubmitting(false)
     }

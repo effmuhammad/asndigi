@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { auth } from '@/auth';
+import { auth } from '../../../../../../auth';
 import { prisma } from '@/lib/prisma';
 import { z } from 'zod';
 
@@ -18,9 +18,10 @@ const trainingRecordSchema = z.object({
 // PUT - Update training record
 export async function PUT(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
+    const { id } = await params;
     const session = await auth();
     
     if (!session?.user?.id) {
@@ -39,19 +40,21 @@ export async function PUT(
       return NextResponse.json({ error: 'Profile not found' }, { status: 404 });
     }
 
-    const trainingRecord = await prisma.trainingRecord.findFirst({
+    // Check if training record exists and belongs to user
+    const existingTraining = await prisma.trainingRecord.findFirst({
       where: {
-        id: params.id,
+        id,
         profile_id: profile.id,
       }
     });
 
-    if (!trainingRecord) {
+    if (!existingTraining) {
       return NextResponse.json({ error: 'Training record not found' }, { status: 404 });
     }
 
-    const updatedRecord = await prisma.trainingRecord.update({
-      where: { id: params.id },
+    // Update the training record
+    const updatedTraining = await prisma.trainingRecord.update({
+      where: { id },
       data: {
         training_name: validatedData.training_name,
         category: validatedData.category,
@@ -64,7 +67,7 @@ export async function PUT(
       }
     });
 
-    return NextResponse.json(updatedRecord);
+    return NextResponse.json(updatedTraining);
   } catch (error) {
     if (error instanceof z.ZodError) {
       return NextResponse.json({ error: 'Validation error', details: error.issues }, { status: 400 });
@@ -78,9 +81,10 @@ export async function PUT(
 // DELETE - Delete training record
 export async function DELETE(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
+    const { id } = await params;
     const session = await auth();
     
     if (!session?.user?.id) {
@@ -96,19 +100,21 @@ export async function DELETE(
       return NextResponse.json({ error: 'Profile not found' }, { status: 404 });
     }
 
-    const trainingRecord = await prisma.trainingRecord.findFirst({
+    // Check if training record exists and belongs to user
+    const existingTraining = await prisma.trainingRecord.findFirst({
       where: {
-        id: params.id,
+        id,
         profile_id: profile.id,
       }
     });
 
-    if (!trainingRecord) {
+    if (!existingTraining) {
       return NextResponse.json({ error: 'Training record not found' }, { status: 404 });
     }
 
+    // Delete the training record
     await prisma.trainingRecord.delete({
-      where: { id: params.id }
+      where: { id }
     });
 
     return NextResponse.json({ message: 'Training record deleted successfully' });

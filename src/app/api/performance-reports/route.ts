@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server"
-import { auth } from "@/../auth"
+import { auth } from "../../../../auth"
 
 import { PrismaClient } from "@prisma/client"
 
@@ -15,7 +15,7 @@ export async function GET(request: NextRequest) {
     const { searchParams } = new URL(request.url)
     const year = searchParams.get("year")
 
-    const where: any = {
+    const where: Record<string, unknown> = {
       user_id: session.user.id
     }
 
@@ -105,12 +105,12 @@ export async function POST(request: NextRequest) {
     const report = await prisma.performanceReport.create({
       data: {
         user_id: session.user.id,
-        period_type: "monthly",
+        period_type: "MONTHLY",
         start_date: startDate,
         end_date: endDate,
         attendance_summary: attendance_summary || {},
         skp_summary: skp_summary || {},
-        status: "draft"
+        status: "DRAFT"
       }
     })
 

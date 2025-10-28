@@ -59,7 +59,7 @@ export default function PresensiPage() {
   const [supabasePhotoUrl, setSupabasePhotoUrl] = useState<string | null>(null)
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [isUploadingPhoto, setIsUploadingPhoto] = useState(false)
-  const [todayAttendance, setTodayAttendance] = useState<any>(null)
+  const [todayAttendance, setTodayAttendance] = useState<AttendanceRecord | null>(null)
   const [attendanceHistory, setAttendanceHistory] = useState<AttendanceRecord[]>([])
   const [workSettings, setWorkSettings] = useState<{
     work_start_time: string
@@ -90,7 +90,7 @@ export default function PresensiPage() {
     let retryCount = 0
     const maxRetries = 3
     let isComponentMounted = true
-    let debounceTimer: NodeJS.Timeout | null = null
+    let debounceTimer: ReturnType<typeof setTimeout> | null = null
 
     // Early check for geolocation support
     if (!navigator.geolocation) {
@@ -668,14 +668,14 @@ export default function PresensiPage() {
               <div className="flex items-center justify-between">
                 <span className="text-sm">Presensi Masuk:</span>
                 <Badge variant="secondary">
-                  {new Date(todayAttendance.check_in).toLocaleTimeString("id-ID")}
+                  {todayAttendance.checkIn ? new Date(todayAttendance.checkIn).toLocaleTimeString("id-ID") : "-"}
                 </Badge>
               </div>
-              {todayAttendance.check_out && (
+              {todayAttendance.checkOut && (
                 <div className="flex items-center justify-between">
                   <span className="text-sm">Presensi Keluar:</span>
                   <Badge variant="secondary">
-                    {new Date(todayAttendance.check_out).toLocaleTimeString("id-ID")}
+                    {new Date(todayAttendance.checkOut).toLocaleTimeString("id-ID")}
                   </Badge>
                 </div>
               )}
@@ -688,7 +688,7 @@ export default function PresensiPage() {
               </div>
               
               {/* Show current attendance status */}
-              {todayAttendance.check_in && !todayAttendance.check_out && (
+              {todayAttendance.checkIn && !todayAttendance.checkOut && (
                 <div className="text-center p-2 bg-green-50 border border-green-200 rounded-lg">
                   <p className="text-sm text-green-700 font-medium">
                     ✓ Sudah presensi masuk hari ini
@@ -699,7 +699,7 @@ export default function PresensiPage() {
                 </div>
               )}
               
-              {todayAttendance.check_in && todayAttendance.check_out && (
+              {todayAttendance.checkIn && todayAttendance.checkOut && (
                 <div className="text-center p-2 bg-blue-50 border border-blue-200 rounded-lg">
                   <p className="text-sm text-blue-700 font-medium">
                     ✓ Presensi hari ini sudah lengkap
@@ -796,7 +796,7 @@ export default function PresensiPage() {
 
               {/* Check In/Out Buttons */}
               <div className="space-y-2">
-                {!todayAttendance?.check_in ? (
+                {!todayAttendance?.checkIn ? (
                   <Button
                     onClick={handleCheckIn}
                     disabled={!location || !supabasePhotoUrl || isSubmitting || isUploadingPhoto}
@@ -804,7 +804,7 @@ export default function PresensiPage() {
                   >
                     {isSubmitting ? "Memproses..." : isUploadingPhoto ? "Mengupload foto..." : "Presensi Masuk"}
                   </Button>
-                ) : !todayAttendance?.check_out ? (
+                ) : !todayAttendance?.checkOut ? (
                   <Button
                     onClick={handleCheckOut}
                     disabled={!location || isSubmitting}

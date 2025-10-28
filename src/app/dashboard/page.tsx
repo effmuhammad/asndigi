@@ -78,7 +78,7 @@ export default function DashboardPage() {
             Dashboard PRIMA ASN
           </h1>
           <p className="text-gray-600">
-            Selamat datang, {session.user.name}
+            Selamat datang, {session?.user?.name}
           </p>
         </div>
         <Button 
@@ -107,7 +107,7 @@ export default function DashboardPage() {
         </div>
         
         {/* Admin Menu Shortcuts - hanya terlihat untuk role admin */}
-        {session?.user?.role === 'ADMIN' && (
+        {(session?.user as any)?.role === 'ADMIN' && (
           <div>
             <h3 className="text-lg font-semibold text-gray-900 mb-3">Menu Admin</h3>
             <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-4">

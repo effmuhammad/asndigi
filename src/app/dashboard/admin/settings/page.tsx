@@ -59,7 +59,7 @@ export default function SettingsPage() {
   }
 
   useEffect(() => {
-    if (session?.user.role === 'ADMIN') {
+    if ((session?.user as any)?.role === 'ADMIN') {
       fetchWorkSettings()
     } else if (status !== 'loading') {
       router.push('/dashboard')
@@ -115,7 +115,7 @@ export default function SettingsPage() {
   }
 
   // Loading state
-  if (status === 'loading' || (session?.user.role !== 'ADMIN' && status !== 'loading')) {
+  if (status === 'loading' || ((session?.user as any)?.role !== 'ADMIN' && status === 'authenticated')) {
     return (
       <div className="flex items-center justify-center min-h-screen">
         <Loader2 className="h-8 w-8 animate-spin" />

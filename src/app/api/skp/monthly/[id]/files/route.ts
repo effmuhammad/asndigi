@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server"
-import { auth } from "@/auth"
+import { auth } from "../../../../../../../auth"
 import { prisma } from "@/lib/prisma"
 import { writeFile, mkdir } from "fs/promises"
 import { join } from "path"
@@ -8,9 +8,10 @@ import { existsSync } from "fs"
 // POST - Upload file untuk Sasaran Kinerja Pegawai
 export async function POST(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
+    const { id } = await params;
     const session = await auth()
     if (!session?.user?.id) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
@@ -18,7 +19,7 @@ export async function POST(
 
     // Check if SKP entry exists and user has permission
     const entry = await prisma.skpMonthlyEntry.findUnique({
-      where: { id: params.id }
+      where: { id }
     })
 
     if (!entry) {
@@ -79,7 +80,7 @@ export async function POST(
     // Generate unique filename
     const timestamp = Date.now()
     const fileExtension = file.name.split('.').pop()
-    const fileName = `${params.id}_${timestamp}.${fileExtension}`
+    const fileName = `${id}_${timestamp}.${fileExtension}`
     const filePath = join(uploadDir, fileName)
     const publicPath = `/uploads/skp-monthly/${fileName}`
 
@@ -91,7 +92,7 @@ export async function POST(
     // Save file info to database
     const fileRecord = await prisma.skpMonthlyFile.create({
       data: {
-        entry_id: params.id,
+        entry_id: id,
         file_name: fileName,
         original_name: file.name,
         file_path: publicPath,
@@ -118,9 +119,10 @@ export async function POST(
 // GET - Ambil daftar file untuk Sasaran Kinerja Pegawai
 export async function GET(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
+    const { id } = await params;
     const session = await auth()
     if (!session?.user?.id) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
@@ -128,7 +130,7 @@ export async function GET(
 
     // Check if SKP entry exists and user has permission
     const entry = await prisma.skpMonthlyEntry.findUnique({
-      where: { id: params.id }
+      where: { id }
     })
 
     if (!entry) {
@@ -151,7 +153,7 @@ export async function GET(
     }
 
     const files = await prisma.skpMonthlyFile.findMany({
-      where: { entry_id: params.id },
+      where: { entry_id: id },
       orderBy: { uploaded_at: "desc" }
     })
 

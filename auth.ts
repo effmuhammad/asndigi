@@ -17,7 +17,6 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
         }
 
         try {
-          // Query user from database using Prisma
           const user = await prisma.user.findUnique({
             where: {
               nip: credentials.nip as string
@@ -28,9 +27,11 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
             return null
           }
 
-          // Verify password
-          const isPasswordValid = await bcrypt.compare(credentials.password as string, user.password)
-          
+          const isPasswordValid = await bcrypt.compare(
+            credentials.password as string,
+            user.password
+          )
+
           if (!isPasswordValid) {
             return null
           }
@@ -39,9 +40,10 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
             id: user.id,
             nip: user.nip,
             name: user.name,
-            email: user.email,
             role: user.role,
-            unit_kerja: user.unit_kerja || ""
+            work_unit: user.work_unit,
+            position: user.position,
+            email: user.email,
           }
         } catch (error) {
           console.error("Auth error:", error)
@@ -51,23 +53,24 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
     })
   ],
   session: {
-    strategy: "jwt"
+    strategy: "jwt" as const
   },
   callbacks: {
-    async jwt({ token, user }) {
+    async jwt({ token, user }: any) {
       if (user) {
-        token.nip = user.nip
+        token.id = user.id  // Store the actual database user ID
         token.role = user.role
-        token.unit_kerja = user.unit_kerja
+        token.work_unit = user.work_unit
+        token.position = user.position
       }
       return token
     },
-    async session({ session, token }) {
+    async session({ session, token }: any) {
       if (token) {
-        session.user.id = token.sub || ""
-        session.user.nip = token.nip as string
+        session.user.id = token.id as string  // Use the stored database user ID
         session.user.role = token.role as string
-        session.user.unit_kerja = token.unit_kerja as string
+        session.user.work_unit = token.work_unit as string
+        session.user.position = token.position as string
       }
       return session
     }

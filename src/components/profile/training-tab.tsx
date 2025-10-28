@@ -10,15 +10,15 @@ import { Input } from "@/components/ui/input"
 import { Textarea } from "@/components/ui/textarea"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form"
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog"
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { Badge } from "@/components/ui/badge"
 import { FileUpload } from "@/components/ui/file-upload"
-import { GraduationCap, Plus, Edit, Trash2, Download, Calendar, Award, Building } from "lucide-react"
+import { GraduationCap, Plus, Edit, Trash2, Calendar, Award, Building } from "lucide-react"
 import { trainingRecordSchema, type TrainingRecordFormData, TRAINING_CATEGORY_OPTIONS } from "@/lib/validations/profile"
 
 interface TrainingTabProps {
-  profileData: any
-  onUpdate: (data: any) => void
+  profileData: unknown
+  onUpdate: (data: unknown) => void
 }
 
 interface TrainingRecord {
@@ -71,7 +71,7 @@ export function TrainingTab({ profileData, onUpdate }: TrainingTabProps) {
         const data = await response.json()
         setTrainingRecords(data)
       }
-    } catch (error) {
+    } catch (error: unknown) {
       console.error('Error fetching training records:', error)
     }
   }
@@ -93,7 +93,7 @@ export function TrainingTab({ profileData, onUpdate }: TrainingTabProps) {
       } else {
         throw new Error('Upload failed')
       }
-    } catch (error) {
+    } catch (error: unknown) {
       console.error('Error uploading certificate:', error)
       toast.error('Gagal mengupload sertifikat')
       return null
@@ -150,7 +150,7 @@ export function TrainingTab({ profileData, onUpdate }: TrainingTabProps) {
         const error = await response.json()
         toast.error(error.message || 'Gagal menghapus data pelatihan')
       }
-    } catch (error) {
+    } catch (error: unknown) {
       console.error('Error deleting training record:', error)
       toast.error('Terjadi kesalahan saat menghapus data pelatihan')
     } finally {
@@ -212,7 +212,7 @@ export function TrainingTab({ profileData, onUpdate }: TrainingTabProps) {
         const error = await response.json()
         toast.error(error.message || 'Gagal menyimpan data pelatihan')
       }
-    } catch (error) {
+    } catch (error: unknown) {
       console.error('Error saving training record:', error)
       toast.error('Terjadi kesalahan saat menyimpan data pelatihan')
     } finally {

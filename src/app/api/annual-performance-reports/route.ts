@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 import { prisma } from '@/lib/prisma'
-import { auth } from '@/auth'
+import { auth } from '../../../../auth'
 import { UserRole, WorkResultRating, BehaviorRating, PerformancePredicate } from '@prisma/client'
 import { 
   calculateSkpCompletionPercentage,
@@ -50,7 +50,7 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
     }
 
-    const whereClause: any = {}
+    const whereClause: Record<string, unknown> = {}
     
     if (year) {
       whereClause.year = parseInt(year)
@@ -171,8 +171,17 @@ export async function POST(request: NextRequest) {
     })
 
     // Calculate performance metrics
-    const attendancePercentage = calculateAttendancePercentage(attendanceRecords)
-    const skpCompletionPercentage = calculateSkpCompletionPercentage(skpEntries)
+    const attendanceData = {
+      total_days: 365, // Assuming full year
+      present_days: attendanceRecords.filter(record => record.status === 'PRESENT').length
+    }
+    const attendancePercentage = calculateAttendancePercentage(attendanceData)
+    
+    const skpData = {
+      total_entries: skpEntries.length,
+      completed_entries: skpEntries.filter(entry => entry.status === 'APPROVED').length
+    }
+    const skpCompletionPercentage = calculateSkpCompletionPercentage(skpData)
     
     const workResultRating = determineWorkResultRating(skpCompletionPercentage)
     const behaviorRating = determineBehaviorRating(attendancePercentage)

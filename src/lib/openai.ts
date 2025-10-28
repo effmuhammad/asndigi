@@ -31,7 +31,7 @@ export interface AttendanceSummaryData {
   check_in: string | null
   check_out: string | null
   status: string
-  location_data?: any
+  location_data?: Record<string, unknown>
   working_hours?: number
 }
 

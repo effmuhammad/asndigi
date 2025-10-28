@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { auth } from '@/auth';
+import { auth } from '../../../../auth';
 import { prisma } from '@/lib/prisma';
 import { z } from 'zod';
 
@@ -116,7 +116,7 @@ export async function PUT(request: NextRequest) {
     const validatedData = profileSchema.parse(body);
 
     // Convert date strings to Date objects
-    const updateData: any = { ...validatedData };
+    const updateData: Record<string, unknown> = { ...validatedData };
     if (validatedData.birth_date) {
       updateData.birth_date = new Date(validatedData.birth_date);
     }
