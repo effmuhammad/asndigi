@@ -13,231 +13,200 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
-import { ClipboardCheck, Plus, Eye, Send, CheckCircle, XCircle, Clock, FileText, Calendar, User } from "lucide-react"
+import { ClipboardCheck, Plus, Eye, Send, CheckCircle, XCircle, Clock, FileText, Calendar, User, AlertCircle, Loader2 } from "lucide-react"
 import { toast } from "sonner"
 
 interface AttendanceSummary {
-  total_days: number
-  present_days: number
-  late_days: number
-  absent_days: number
-  attendance_percentage: number
+  totalDays: number
+  presentDays: number
+  percentage: number
 }
 
 interface SkpSummary {
-  total_items: number
-  completed_items: number
-  average_progress: number
-  total_weight: number
+  totalEntries: number
+  completedEntries: number
+  percentage: number
 }
 
-interface PerformanceReport {
+interface AnnualPerformanceReport {
   id: string
-  period: string
-  month: number
+  user_id: string
   year: number
-  attendance_summary: AttendanceSummary
-  skp_summary: SkpSummary
-  self_assessment: string
-  achievements: string
-  challenges: string
-  improvement_plan: string
-  status: "draft" | "submitted" | "approved" | "rejected"
+  attendance_summary: AttendanceSummary | null
+  skp_summary: SkpSummary | null
+  work_result_rating: "DIATAS_EKSPEKTASI" | "SESUAI_EKSPEKTASI" | "DIBAWAH_EKSPEKTASI"
+  behavior_rating: "DIATAS_EKSPEKTASI" | "SESUAI_EKSPEKTASI" | "DIBAWAH_EKSPEKTASI"
+  performance_predicate: "SANGAT_BAIK" | "BAIK" | "CUKUP" | "KURANG"
+  ai_generated_summary?: string
+  self_assessment?: string
+  achievements?: string
+  challenges?: string
+  improvement_plan?: string
+  status: "DRAFT" | "SUBMITTED" | "APPROVED" | "REJECTED"
   submitted_at?: string
   approved_at?: string
-  approver_name?: string
-  feedback?: string
   created_at: string
+  updated_at: string
+  user: {
+    id: string
+    name: string
+    email: string
+    nip: string
+    position: string
+    unit: string
+  }
+  supervisor_evaluation?: {
+    id: string
+    work_quality_score: number
+    work_quantity_score: number
+    punctuality_score: number
+    cooperation_score: number
+    initiative_score: number
+    leadership_score?: number
+    overall_rating: number
+    supervisor_comments?: string
+    recommendations?: string
+    development_areas?: string
+    strengths?: string
+    supervisor: {
+      name: string
+      nip: string
+    }
+  }
+  digital_signature?: {
+    id: string
+    signer: {
+      name: string
+      nip: string
+    }
+  }
 }
 
 export default function LaporanKinerjaPage() {
   const { data: session } = useSession()
-  const [reports, setReports] = useState<PerformanceReport[]>([])
+  const [reports, setReports] = useState<AnnualPerformanceReport[]>([])
   const [isLoading, setIsLoading] = useState(true)
-  const [selectedYear, setSelectedYear] = useState(new Date().getFullYear())
+  const [selectedYear, setSelectedYear] = useState(2024)
   const [isDialogOpen, setIsDialogOpen] = useState(false)
-  const [viewingReport, setViewingReport] = useState<PerformanceReport | null>(null)
+  const [viewingReport, setViewingReport] = useState<AnnualPerformanceReport | null>(null)
+  const [isSubmitting, setIsSubmitting] = useState(false)
   const [formData, setFormData] = useState({
-    month: new Date().getMonth() + 1,
-    year: new Date().getFullYear(),
+    year: 2024,
     self_assessment: "",
     achievements: "",
     challenges: "",
     improvement_plan: ""
   })
 
-  // Mock data
+  // Fetch reports from API
   useEffect(() => {
-    const mockReports: PerformanceReport[] = [
-      {
-        id: "1",
-        period: "Maret 2024",
-        month: 3,
-        year: 2024,
-        attendance_summary: {
-          total_days: 21,
-          present_days: 20,
-          late_days: 2,
-          absent_days: 1,
-          attendance_percentage: 95.2
-        },
-        skp_summary: {
-          total_items: 5,
-          completed_items: 4,
-          average_progress: 82.5,
-          total_weight: 100
-        },
-        self_assessment: "Secara keseluruhan, kinerja bulan ini cukup baik dengan pencapaian target yang memuaskan. Tingkat kehadiran mencapai 95% dan sebagian besar SKP telah terealisasi sesuai rencana.",
-        achievements: "1. Berhasil menyelesaikan implementasi sistem antrian digital\n2. Menyelesaikan 4 dari 5 target SKP dengan baik\n3. Mengikuti 2 pelatihan pengembangan kompetensi\n4. Koordinasi dengan stakeholder berjalan lancar",
-        challenges: "1. Kendala teknis pada implementasi sistem di lokasi kedua\n2. Keterlambatan approval dari pihak eksternal\n3. Beban kerja yang cukup tinggi di akhir bulan",
-        improvement_plan: "1. Melakukan koordinasi lebih intensif dengan tim IT\n2. Follow up rutin untuk proses approval\n3. Mengatur prioritas kerja dengan lebih baik\n4. Meningkatkan komunikasi dengan tim",
-        status: "approved",
-        submitted_at: "2024-04-02T10:30:00Z",
-        approved_at: "2024-04-05T14:15:00Z",
-        approver_name: "Dr. Siti Nurhaliza, M.Si",
-        feedback: "Laporan sangat baik dan komprehensif. Pencapaian target memuaskan. Pertahankan konsistensi kinerja.",
-        created_at: "2024-04-01T08:00:00Z"
-      },
-      {
-        id: "2",
-        period: "Februari 2024",
-        month: 2,
-        year: 2024,
-        attendance_summary: {
-          total_days: 20,
-          present_days: 19,
-          late_days: 1,
-          absent_days: 1,
-          attendance_percentage: 95.0
-        },
-        skp_summary: {
-          total_items: 5,
-          completed_items: 3,
-          average_progress: 75.0,
-          total_weight: 100
-        },
-        self_assessment: "Kinerja bulan ini mengalami sedikit penurunan dibanding bulan sebelumnya, namun masih dalam batas wajar. Beberapa target SKP mengalami keterlambatan.",
-        achievements: "1. Menyelesaikan laporan keuangan tepat waktu\n2. Melakukan 3 kali koordinasi dengan mitra kerja\n3. Mengikuti workshop pengembangan SDM",
-        challenges: "1. Keterlambatan dalam pengembangan sistem informasi\n2. Koordinasi dengan vendor yang kurang optimal\n3. Sakit selama 1 hari",
-        improvement_plan: "1. Mempercepat koordinasi dengan tim pengembang\n2. Membuat jadwal follow up yang lebih ketat\n3. Menjaga kesehatan dengan lebih baik",
-        status: "approved",
-        submitted_at: "2024-03-01T09:15:00Z",
-        approved_at: "2024-03-03T16:20:00Z",
-        approver_name: "Dr. Siti Nurhaliza, M.Si",
-        feedback: "Perlu peningkatan dalam manajemen waktu dan koordinasi proyek. Overall masih acceptable.",
-        created_at: "2024-02-29T08:00:00Z"
-      },
-      {
-        id: "3",
-        period: "Januari 2024",
-        month: 1,
-        year: 2024,
-        attendance_summary: {
-          total_days: 22,
-          present_days: 22,
-          late_days: 0,
-          absent_days: 0,
-          attendance_percentage: 100.0
-        },
-        skp_summary: {
-          total_items: 5,
-          completed_items: 5,
-          average_progress: 90.0,
-          total_weight: 100
-        },
-        self_assessment: "Awal tahun yang sangat baik dengan pencapaian sempurna dalam kehadiran dan hampir semua target SKP tercapai dengan baik.",
-        achievements: "1. Perfect attendance sepanjang bulan\n2. Semua target SKP tercapai\n3. Inisiasi proyek sistem informasi baru\n4. Pelatihan customer service berhasil dilaksanakan",
-        challenges: "1. Adaptasi dengan target baru di awal tahun\n2. Koordinasi dengan tim baru",
-        improvement_plan: "1. Mempertahankan konsistensi kinerja\n2. Meningkatkan inovasi dalam pelayanan\n3. Mengoptimalkan kerja tim",
-        status: "approved",
-        submitted_at: "2024-02-01T08:30:00Z",
-        approved_at: "2024-02-02T11:45:00Z",
-        approver_name: "Dr. Siti Nurhaliza, M.Si",
-        feedback: "Excellent performance! Pertahankan konsistensi ini sepanjang tahun.",
-        created_at: "2024-01-31T08:00:00Z"
+    const fetchReports = async () => {
+      if (!session?.user?.id) return
+      
+      setIsLoading(true)
+      try {
+        const response = await fetch(`/api/annual-performance-reports?year=${selectedYear}&user_id=${session.user.id}`)
+        if (!response.ok) {
+          throw new Error('Failed to fetch reports')
+        }
+        const data = await response.json()
+        setReports(data.reports || [])
+      } catch (error) {
+        console.error('Error fetching reports:', error)
+        toast.error('Gagal memuat laporan kinerja')
+      } finally {
+        setIsLoading(false)
       }
-    ]
+    }
 
-    setTimeout(() => {
-      setReports(mockReports.filter(report => report.year === selectedYear))
-      setIsLoading(false)
-    }, 1000)
-  }, [selectedYear])
+    fetchReports()
+  }, [selectedYear, session?.user?.id])
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     
-    // Mock attendance and SKP data for the selected month
-    const mockAttendance: AttendanceSummary = {
-      total_days: 21,
-      present_days: 20,
-      late_days: 1,
-      absent_days: 1,
-      attendance_percentage: 95.2
+    if (!session?.user?.id) {
+      toast.error('Anda harus login terlebih dahulu')
+      return
     }
 
-    const mockSkp: SkpSummary = {
-      total_items: 5,
-      completed_items: 4,
-      average_progress: 80.0,
-      total_weight: 100
+    setIsSubmitting(true)
+    try {
+      const response = await fetch('/api/annual-performance-reports', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          user_id: session.user.id,
+          year: formData.year,
+          self_assessment: formData.self_assessment,
+          achievements: formData.achievements,
+          challenges: formData.challenges,
+          improvement_plan: formData.improvement_plan
+        }),
+      })
+
+      if (!response.ok) {
+        const errorData = await response.json()
+        throw new Error(errorData.error || 'Failed to create report')
+      }
+
+      const data = await response.json()
+      setReports(prev => [data.report, ...prev])
+      setIsDialogOpen(false)
+      setFormData({
+        year: 2024,
+        self_assessment: "",
+        achievements: "",
+        challenges: "",
+        improvement_plan: ""
+      })
+      toast.success("Laporan kinerja berhasil dibuat")
+    } catch (error: any) {
+      console.error('Error creating report:', error)
+      toast.error(error.message || 'Gagal membuat laporan kinerja')
+    } finally {
+      setIsSubmitting(false)
     }
-
-    const monthNames = [
-      "Januari", "Februari", "Maret", "April", "Mei", "Juni",
-      "Juli", "Agustus", "September", "Oktober", "November", "Desember"
-    ]
-
-    const newReport: PerformanceReport = {
-      id: Math.random().toString(36).substr(2, 9),
-      period: `${monthNames[formData.month - 1]} ${formData.year}`,
-      month: formData.month,
-      year: formData.year,
-      attendance_summary: mockAttendance,
-      skp_summary: mockSkp,
-      self_assessment: formData.self_assessment,
-      achievements: formData.achievements,
-      challenges: formData.challenges,
-      improvement_plan: formData.improvement_plan,
-      status: "draft",
-      created_at: new Date().toISOString()
-    }
-
-    setReports(prev => [newReport, ...prev])
-    setIsDialogOpen(false)
-    setFormData({
-      month: new Date().getMonth() + 1,
-      year: new Date().getFullYear(),
-      self_assessment: "",
-      achievements: "",
-      challenges: "",
-      improvement_plan: ""
-    })
-    toast.success("Laporan kinerja berhasil dibuat")
   }
 
-  const handleSubmitReport = (id: string) => {
-    setReports(prev => prev.map(report => 
-      report.id === id 
-        ? { 
-            ...report, 
-            status: "submitted", 
-            submitted_at: new Date().toISOString() 
-          }
-        : report
-    ))
-    toast.success("Laporan berhasil disubmit untuk approval")
+  const handleSubmitReport = async (id: string) => {
+    try {
+      const response = await fetch(`/api/annual-performance-reports/${id}`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          status: 'SUBMITTED'
+        }),
+      })
+
+      if (!response.ok) {
+        throw new Error('Failed to submit report')
+      }
+
+      const data = await response.json()
+      setReports(prev => prev.map(report => 
+        report.id === id ? data.data : report
+      ))
+      toast.success("Laporan berhasil disubmit untuk approval")
+    } catch (error) {
+      console.error('Error submitting report:', error)
+      toast.error('Gagal submit laporan')
+    }
   }
 
   const getStatusBadge = (status: string) => {
     switch (status) {
-      case "draft":
+      case "DRAFT":
         return <Badge variant="secondary">Draft</Badge>
-      case "submitted":
+      case "SUBMITTED":
         return <Badge variant="default">Menunggu Approval</Badge>
-      case "approved":
+      case "APPROVED":
         return <Badge variant="default" className="bg-green-600">Disetujui</Badge>
-      case "rejected":
+      case "REJECTED":
         return <Badge variant="destructive">Ditolak</Badge>
       default:
         return <Badge variant="secondary">Unknown</Badge>
@@ -246,23 +215,49 @@ export default function LaporanKinerjaPage() {
 
   const getStatusIcon = (status: string) => {
     switch (status) {
-      case "draft":
+      case "DRAFT":
         return <FileText className="w-4 h-4" />
-      case "submitted":
+      case "SUBMITTED":
         return <Clock className="w-4 h-4" />
-      case "approved":
+      case "APPROVED":
         return <CheckCircle className="w-4 h-4 text-green-600" />
-      case "rejected":
+      case "REJECTED":
         return <XCircle className="w-4 h-4 text-red-600" />
       default:
         return <FileText className="w-4 h-4" />
     }
   }
 
-  const monthNames = [
-    "Januari", "Februari", "Maret", "April", "Mei", "Juni",
-    "Juli", "Agustus", "September", "Oktober", "November", "Desember"
-  ]
+  const getRatingBadge = (rating: string) => {
+    switch (rating) {
+      case "DIATAS_EKSPEKTASI":
+        return <Badge className="bg-green-600">Di Atas Ekspektasi</Badge>
+      case "SESUAI_EKSPEKTASI":
+        return <Badge className="bg-blue-600">Sesuai Ekspektasi</Badge>
+      case "DIBAWAH_EKSPEKTASI":
+        return <Badge className="bg-orange-600">Di Bawah Ekspektasi</Badge>
+      default:
+        return <Badge variant="secondary">{rating}</Badge>
+    }
+  }
+
+  const getPredicateBadge = (predicate: string) => {
+    switch (predicate) {
+      case "SANGAT_BAIK":
+        return <Badge className="bg-green-700">Sangat Baik</Badge>
+      case "BAIK":
+        return <Badge className="bg-green-600">Baik</Badge>
+      case "CUKUP":
+        return <Badge className="bg-yellow-600">Cukup</Badge>
+      case "KURANG":
+        return <Badge className="bg-red-600">Kurang</Badge>
+      default:
+        return <Badge variant="secondary">{predicate}</Badge>
+    }
+  }
+
+  // Check if report already exists for selected year
+  const reportExistsForYear = reports.some(report => report.year === formData.year)
 
   return (
     <div className="w-full max-w-none space-y-6">
@@ -291,31 +286,19 @@ export default function LaporanKinerjaPage() {
             </DialogTrigger>
             <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
               <DialogHeader>
-                <DialogTitle>Buat Laporan Kinerja Baru</DialogTitle>
+                <DialogTitle>Buat Laporan Kinerja Tahunan Baru</DialogTitle>
                 <DialogDescription>
-                  Isi form di bawah untuk membuat laporan kinerja bulanan
+                  Isi form di bawah untuk membuat laporan kinerja tahunan. Sistem akan otomatis menghitung data kehadiran dan SKP Anda.
                 </DialogDescription>
               </DialogHeader>
               <form onSubmit={handleSubmit} className="space-y-6">
-                <div className="grid grid-cols-2 gap-4">
-                  <div className="space-y-2">
-                    <Label htmlFor="month">Bulan</Label>
-                    <Select value={formData.month.toString()} onValueChange={(value) => setFormData(prev => ({ ...prev, month: parseInt(value) }))}>
-                      <SelectTrigger>
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {monthNames.map((month, index) => (
-                          <SelectItem key={index} value={(index + 1).toString()}>
-                            {month}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  </div>
-                  <div className="space-y-2">
+                <div className="grid grid-cols-1 gap-4">
+                  <div>
                     <Label htmlFor="year">Tahun</Label>
-                    <Select value={formData.year.toString()} onValueChange={(value) => setFormData(prev => ({ ...prev, year: parseInt(value) }))}>
+                    <Select 
+                      value={formData.year.toString()} 
+                      onValueChange={(value) => setFormData(prev => ({ ...prev, year: parseInt(value) }))}
+                    >
                       <SelectTrigger>
                         <SelectValue />
                       </SelectTrigger>
@@ -325,63 +308,74 @@ export default function LaporanKinerjaPage() {
                         <SelectItem value="2022">2022</SelectItem>
                       </SelectContent>
                     </Select>
+                    {reportExistsForYear && (
+                      <p className="text-sm text-orange-600 mt-1 flex items-center gap-1">
+                        <AlertCircle className="w-4 h-4" />
+                        Laporan untuk tahun ini sudah ada
+                      </p>
+                    )}
                   </div>
                 </div>
 
-                <div className="space-y-2">
-                  <Label htmlFor="self_assessment">Penilaian Diri</Label>
-                  <Textarea
-                    id="self_assessment"
-                    value={formData.self_assessment}
-                    onChange={(e) => setFormData(prev => ({ ...prev, self_assessment: e.target.value }))}
-                    placeholder="Berikan penilaian terhadap kinerja Anda pada periode ini..."
-                    rows={4}
-                    required
-                  />
-                </div>
+                <div className="space-y-4">
+                  <div>
+                    <Label htmlFor="self_assessment">Penilaian Diri</Label>
+                    <Textarea
+                      id="self_assessment"
+                      placeholder="Tuliskan penilaian diri Anda terhadap kinerja tahun ini..."
+                      value={formData.self_assessment}
+                      onChange={(e) => setFormData(prev => ({ ...prev, self_assessment: e.target.value }))}
+                      className="min-h-[100px]"
+                    />
+                  </div>
 
-                <div className="space-y-2">
-                  <Label htmlFor="achievements">Pencapaian & Prestasi</Label>
-                  <Textarea
-                    id="achievements"
-                    value={formData.achievements}
-                    onChange={(e) => setFormData(prev => ({ ...prev, achievements: e.target.value }))}
-                    placeholder="Sebutkan pencapaian dan prestasi yang telah diraih..."
-                    rows={4}
-                    required
-                  />
-                </div>
+                  <div>
+                    <Label htmlFor="achievements">Pencapaian</Label>
+                    <Textarea
+                      id="achievements"
+                      placeholder="Tuliskan pencapaian-pencapaian penting tahun ini..."
+                      value={formData.achievements}
+                      onChange={(e) => setFormData(prev => ({ ...prev, achievements: e.target.value }))}
+                      className="min-h-[100px]"
+                    />
+                  </div>
 
-                <div className="space-y-2">
-                  <Label htmlFor="challenges">Kendala & Tantangan</Label>
-                  <Textarea
-                    id="challenges"
-                    value={formData.challenges}
-                    onChange={(e) => setFormData(prev => ({ ...prev, challenges: e.target.value }))}
-                    placeholder="Jelaskan kendala dan tantangan yang dihadapi..."
-                    rows={4}
-                    required
-                  />
-                </div>
+                  <div>
+                    <Label htmlFor="challenges">Tantangan</Label>
+                    <Textarea
+                      id="challenges"
+                      placeholder="Tuliskan tantangan yang dihadapi tahun ini..."
+                      value={formData.challenges}
+                      onChange={(e) => setFormData(prev => ({ ...prev, challenges: e.target.value }))}
+                      className="min-h-[100px]"
+                    />
+                  </div>
 
-                <div className="space-y-2">
-                  <Label htmlFor="improvement_plan">Rencana Perbaikan</Label>
-                  <Textarea
-                    id="improvement_plan"
-                    value={formData.improvement_plan}
-                    onChange={(e) => setFormData(prev => ({ ...prev, improvement_plan: e.target.value }))}
-                    placeholder="Jelaskan rencana perbaikan untuk periode selanjutnya..."
-                    rows={4}
-                    required
-                  />
+                  <div>
+                    <Label htmlFor="improvement_plan">Rencana Perbaikan</Label>
+                    <Textarea
+                      id="improvement_plan"
+                      placeholder="Tuliskan rencana perbaikan untuk tahun depan..."
+                      value={formData.improvement_plan}
+                      onChange={(e) => setFormData(prev => ({ ...prev, improvement_plan: e.target.value }))}
+                      className="min-h-[100px]"
+                    />
+                  </div>
                 </div>
 
                 <DialogFooter>
                   <Button type="button" variant="outline" onClick={() => setIsDialogOpen(false)}>
                     Batal
                   </Button>
-                  <Button type="submit">
-                    Buat Laporan
+                  <Button type="submit" disabled={isSubmitting || reportExistsForYear}>
+                    {isSubmitting ? (
+                      <>
+                        <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                        Membuat...
+                      </>
+                    ) : (
+                      'Buat Laporan'
+                    )}
                   </Button>
                 </DialogFooter>
               </form>
@@ -391,52 +385,62 @@ export default function LaporanKinerjaPage() {
       </div>
 
       {/* Summary Cards */}
-      <div className="grid gap-4 md:grid-cols-4">
+      <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
         <Card>
-          <CardContent className="p-6">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm font-medium text-muted-foreground">Total Laporan</p>
-                <p className="text-2xl font-bold">{reports.length}</p>
-              </div>
-              <ClipboardCheck className="w-8 h-8 text-blue-600" />
-            </div>
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium">Total Laporan</CardTitle>
+            <FileText className="h-4 w-4 text-muted-foreground" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold">{reports.length}</div>
+            <p className="text-xs text-muted-foreground">
+              Tahun {selectedYear}
+            </p>
           </CardContent>
         </Card>
 
         <Card>
-          <CardContent className="p-6">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm font-medium text-muted-foreground">Disetujui</p>
-                <p className="text-2xl font-bold">{reports.filter(r => r.status === "approved").length}</p>
-              </div>
-              <CheckCircle className="w-8 h-8 text-green-600" />
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium">Disetujui</CardTitle>
+            <CheckCircle className="h-4 w-4 text-green-600" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold text-green-600">
+              {reports.filter(r => r.status === "APPROVED").length}
             </div>
+            <p className="text-xs text-muted-foreground">
+              Laporan disetujui
+            </p>
           </CardContent>
         </Card>
 
         <Card>
-          <CardContent className="p-6">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm font-medium text-muted-foreground">Menunggu</p>
-                <p className="text-2xl font-bold">{reports.filter(r => r.status === "submitted").length}</p>
-              </div>
-              <Clock className="w-8 h-8 text-yellow-600" />
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium">Menunggu</CardTitle>
+            <Clock className="h-4 w-4 text-orange-600" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold text-orange-600">
+              {reports.filter(r => r.status === "SUBMITTED").length}
             </div>
+            <p className="text-xs text-muted-foreground">
+              Menunggu approval
+            </p>
           </CardContent>
         </Card>
 
         <Card>
-          <CardContent className="p-6">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm font-medium text-muted-foreground">Draft</p>
-                <p className="text-2xl font-bold">{reports.filter(r => r.status === "draft").length}</p>
-              </div>
-              <FileText className="w-8 h-8 text-gray-600" />
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium">Draft</CardTitle>
+            <FileText className="h-4 w-4 text-muted-foreground" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold">
+              {reports.filter(r => r.status === "DRAFT").length}
             </div>
+            <p className="text-xs text-muted-foreground">
+              Belum disubmit
+            </p>
           </CardContent>
         </Card>
       </div>
@@ -444,353 +448,440 @@ export default function LaporanKinerjaPage() {
       {/* Reports Table */}
       <Card>
         <CardHeader>
-          <CardTitle>Daftar Laporan Kinerja {selectedYear}</CardTitle>
+          <CardTitle>Daftar Laporan Kinerja</CardTitle>
           <CardDescription>
-            Kelola laporan kinerja bulanan dan pantau status approval
+            Kelola dan pantau status laporan kinerja tahunan Anda
           </CardDescription>
         </CardHeader>
         <CardContent>
           {isLoading ? (
             <div className="flex items-center justify-center py-8">
-              <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
+              <Loader2 className="w-8 h-8 animate-spin" />
+              <span className="ml-2">Memuat laporan...</span>
+            </div>
+          ) : reports.length === 0 ? (
+            <div className="text-center py-8">
+              <FileText className="w-12 h-12 text-muted-foreground mx-auto mb-4" />
+              <h3 className="text-lg font-medium mb-2">Belum ada laporan</h3>
+              <p className="text-muted-foreground mb-4">
+                Anda belum memiliki laporan kinerja untuk tahun {selectedYear}
+              </p>
+              <Button onClick={() => setIsDialogOpen(true)}>
+                <Plus className="w-4 h-4 mr-2" />
+                Buat Laporan Pertama
+              </Button>
             </div>
           ) : (
-            <div className="rounded-md border">
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>Periode</TableHead>
-                    <TableHead>Kehadiran</TableHead>
-                    <TableHead>Progress SKP</TableHead>
-                    <TableHead>Status</TableHead>
-                    <TableHead>Tanggal Submit</TableHead>
-                    <TableHead>Aksi</TableHead>
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Tahun</TableHead>
+                  <TableHead>Predikat Kinerja</TableHead>
+                  <TableHead>Rating Hasil Kerja</TableHead>
+                  <TableHead>Rating Perilaku</TableHead>
+                  <TableHead>Kehadiran</TableHead>
+                  <TableHead>SKP</TableHead>
+                  <TableHead>Status</TableHead>
+                  <TableHead>Aksi</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {reports.map((report) => (
+                  <TableRow key={report.id}>
+                    <TableCell className="font-medium">{report.year}</TableCell>
+                    <TableCell>{getPredicateBadge(report.performance_predicate)}</TableCell>
+                    <TableCell>{getRatingBadge(report.work_result_rating)}</TableCell>
+                    <TableCell>{getRatingBadge(report.behavior_rating)}</TableCell>
+                    <TableCell>
+                      <div className="flex items-center gap-2">
+                        <Progress value={report.attendance_summary?.percentage || 0} className="w-16" />
+                        <span className="text-sm">{(report.attendance_summary?.percentage || 0).toFixed(1)}%</span>
+                      </div>
+                    </TableCell>
+                    <TableCell>
+                      <div className="flex items-center gap-2">
+                        <Progress value={report.skp_summary?.percentage || 0} className="w-16" />
+                        <span className="text-sm">{(report.skp_summary?.percentage || 0).toFixed(1)}%</span>
+                      </div>
+                    </TableCell>
+                    <TableCell>
+                      <div className="flex items-center gap-2">
+                        {getStatusIcon(report.status)}
+                        {getStatusBadge(report.status)}
+                      </div>
+                    </TableCell>
+                    <TableCell>
+                      <div className="flex items-center gap-2">
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => setViewingReport(report)}
+                        >
+                          <Eye className="w-4 h-4" />
+                        </Button>
+                        {report.status === "DRAFT" && (
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => handleSubmitReport(report.id)}
+                          >
+                            <Send className="w-4 h-4" />
+                          </Button>
+                        )}
+                      </div>
+                    </TableCell>
                   </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {reports.length === 0 ? (
-                    <TableRow>
-                      <TableCell colSpan={6} className="text-center py-8 text-muted-foreground">
-                        Belum ada laporan kinerja. Klik "Buat Laporan" untuk memulai.
-                      </TableCell>
-                    </TableRow>
-                  ) : (
-                    reports.map((report) => (
-                      <TableRow key={report.id}>
-                        <TableCell className="font-medium">
-                          <div className="flex items-center gap-2">
-                            {getStatusIcon(report.status)}
-                            {report.period}
-                          </div>
-                        </TableCell>
-                        <TableCell>
-                          <div className="space-y-1">
-                            <div className="text-sm font-medium">
-                              {report.attendance_summary.attendance_percentage.toFixed(1)}%
-                            </div>
-                            <div className="text-xs text-muted-foreground">
-                              {report.attendance_summary.present_days}/{report.attendance_summary.total_days} hari
-                            </div>
-                          </div>
-                        </TableCell>
-                        <TableCell>
-                          <div className="space-y-1">
-                            <div className="text-sm font-medium">
-                              {report.skp_summary.average_progress.toFixed(1)}%
-                            </div>
-                            <div className="text-xs text-muted-foreground">
-                              {report.skp_summary.completed_items}/{report.skp_summary.total_items} item
-                            </div>
-                          </div>
-                        </TableCell>
-                        <TableCell>
-                          {getStatusBadge(report.status)}
-                        </TableCell>
-                        <TableCell>
-                          {report.submitted_at ? (
-                            <div className="text-sm">
-                              {new Date(report.submitted_at).toLocaleDateString('id-ID')}
-                            </div>
-                          ) : (
-                            <span className="text-muted-foreground">-</span>
-                          )}
-                        </TableCell>
-                        <TableCell>
-                          <div className="flex items-center gap-2">
-                            <Button
-                              size="sm"
-                              variant="outline"
-                              onClick={() => setViewingReport(report)}
-                            >
-                              <Eye className="w-3 h-3" />
-                            </Button>
-                            {report.status === "draft" && (
-                              <Button
-                                size="sm"
-                                onClick={() => handleSubmitReport(report.id)}
-                              >
-                                <Send className="w-3 h-3" />
-                              </Button>
-                            )}
-                          </div>
-                        </TableCell>
-                      </TableRow>
-                    ))
-                  )}
-                </TableBody>
-              </Table>
-            </div>
+                ))}
+              </TableBody>
+            </Table>
           )}
         </CardContent>
       </Card>
 
       {/* View Report Dialog */}
       <Dialog open={!!viewingReport} onOpenChange={() => setViewingReport(null)}>
-        <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
+        <DialogContent className="max-w-6xl max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>Detail Laporan Kinerja Tahunan {viewingReport?.year}</DialogTitle>
+            <DialogDescription>
+              Laporan kinerja tahunan untuk {viewingReport?.user.name} ({viewingReport?.user.nip})
+            </DialogDescription>
+          </DialogHeader>
+          
           {viewingReport && (
-            <>
-              <DialogHeader>
-                <DialogTitle className="flex items-center gap-2">
-                  <ClipboardCheck className="w-5 h-5" />
-                  Laporan Kinerja - {viewingReport.period}
-                </DialogTitle>
-                <DialogDescription>
-                  Detail laporan kinerja dan data pendukung
-                </DialogDescription>
-              </DialogHeader>
+            <Tabs defaultValue="overview" className="w-full">
+              <TabsList className="grid w-full grid-cols-4">
+                <TabsTrigger value="overview">Ringkasan</TabsTrigger>
+                <TabsTrigger value="assessment">Penilaian Diri</TabsTrigger>
+                <TabsTrigger value="supervisor">Evaluasi Atasan</TabsTrigger>
+                <TabsTrigger value="signature">Tanda Tangan</TabsTrigger>
+              </TabsList>
+              
+              <TabsContent value="overview" className="space-y-6">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                  <Card>
+                    <CardHeader>
+                      <CardTitle className="text-lg">Informasi Pegawai</CardTitle>
+                    </CardHeader>
+                    <CardContent className="space-y-2">
+                      <div className="flex justify-between">
+                        <span className="text-muted-foreground">Nama:</span>
+                        <span className="font-medium">{viewingReport.user.name}</span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span className="text-muted-foreground">NIP:</span>
+                        <span className="font-medium">{viewingReport.user.nip}</span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span className="text-muted-foreground">Jabatan:</span>
+                        <span className="font-medium">{viewingReport.user.position}</span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span className="text-muted-foreground">Unit Kerja:</span>
+                        <span className="font-medium">{viewingReport.user.unit}</span>
+                      </div>
+                    </CardContent>
+                  </Card>
 
-              <div className="space-y-6">
-                {/* Status and Approval Info */}
-                <div className="flex items-center justify-between p-4 bg-gray-50 rounded-lg">
-                  <div className="flex items-center gap-4">
-                    <div>
-                      <p className="font-medium">Status: {getStatusBadge(viewingReport.status)}</p>
-                      {viewingReport.submitted_at && (
-                        <p className="text-sm text-muted-foreground">
-                          Disubmit: {new Date(viewingReport.submitted_at).toLocaleString('id-ID')}
-                        </p>
-                      )}
-                    </div>
-                  </div>
-                  {viewingReport.approver_name && (
-                    <div className="text-right">
-                      <p className="text-sm font-medium flex items-center gap-1">
-                        <User className="w-4 h-4" />
-                        {viewingReport.approver_name}
-                      </p>
-                      {viewingReport.approved_at && (
-                        <p className="text-sm text-muted-foreground">
-                          {new Date(viewingReport.approved_at).toLocaleString('id-ID')}
-                        </p>
-                      )}
-                    </div>
-                  )}
+                  <Card>
+                    <CardHeader>
+                      <CardTitle className="text-lg">Penilaian Kinerja</CardTitle>
+                    </CardHeader>
+                    <CardContent className="space-y-4">
+                      <div className="flex justify-between items-center">
+                        <span className="text-muted-foreground">Predikat Kinerja:</span>
+                        {getPredicateBadge(viewingReport.performance_predicate)}
+                      </div>
+                      <div className="flex justify-between items-center">
+                        <span className="text-muted-foreground">Rating Hasil Kerja:</span>
+                        {getRatingBadge(viewingReport.work_result_rating)}
+                      </div>
+                      <div className="flex justify-between items-center">
+                        <span className="text-muted-foreground">Rating Perilaku:</span>
+                        {getRatingBadge(viewingReport.behavior_rating)}
+                      </div>
+                      <div className="flex justify-between items-center">
+                        <span className="text-muted-foreground">Status:</span>
+                        {getStatusBadge(viewingReport.status)}
+                      </div>
+                    </CardContent>
+                  </Card>
                 </div>
 
-                <Tabs defaultValue="summary" className="space-y-4">
-                  <TabsList className="grid w-full grid-cols-4">
-                    <TabsTrigger value="summary">Ringkasan</TabsTrigger>
-                    <TabsTrigger value="attendance">Kehadiran</TabsTrigger>
-                    <TabsTrigger value="skp">SKP</TabsTrigger>
-                    <TabsTrigger value="assessment">Penilaian</TabsTrigger>
-                  </TabsList>
-
-                  <TabsContent value="summary" className="space-y-4">
-                    <div className="grid gap-4 md:grid-cols-2">
-                      <Card>
-                        <CardHeader>
-                          <CardTitle className="text-lg">Ringkasan Kehadiran</CardTitle>
-                        </CardHeader>
-                        <CardContent className="space-y-4">
-                          <div className="flex items-center justify-between">
-                            <span>Persentase Kehadiran</span>
-                            <Badge variant="outline">
-                              {viewingReport.attendance_summary.attendance_percentage.toFixed(1)}%
-                            </Badge>
-                          </div>
-                          <Progress value={viewingReport.attendance_summary.attendance_percentage} />
-                          <div className="grid grid-cols-2 gap-4 text-sm">
-                            <div>
-                              <p className="text-muted-foreground">Hadir</p>
-                              <p className="font-medium">{viewingReport.attendance_summary.present_days} hari</p>
-                            </div>
-                            <div>
-                              <p className="text-muted-foreground">Terlambat</p>
-                              <p className="font-medium">{viewingReport.attendance_summary.late_days} hari</p>
-                            </div>
-                          </div>
-                        </CardContent>
-                      </Card>
-
-                      <Card>
-                        <CardHeader>
-                          <CardTitle className="text-lg">Ringkasan SKP</CardTitle>
-                        </CardHeader>
-                        <CardContent className="space-y-4">
-                          <div className="flex items-center justify-between">
-                            <span>Progress Rata-rata</span>
-                            <Badge variant="outline">
-                              {viewingReport.skp_summary.average_progress.toFixed(1)}%
-                            </Badge>
-                          </div>
-                          <Progress value={viewingReport.skp_summary.average_progress} />
-                          <div className="grid grid-cols-2 gap-4 text-sm">
-                            <div>
-                              <p className="text-muted-foreground">Selesai</p>
-                              <p className="font-medium">{viewingReport.skp_summary.completed_items} item</p>
-                            </div>
-                            <div>
-                              <p className="text-muted-foreground">Total</p>
-                              <p className="font-medium">{viewingReport.skp_summary.total_items} item</p>
-                            </div>
-                          </div>
-                        </CardContent>
-                      </Card>
-                    </div>
-                  </TabsContent>
-
-                  <TabsContent value="attendance" className="space-y-4">
-                    <Card>
-                      <CardHeader>
-                        <CardTitle>Detail Kehadiran</CardTitle>
-                      </CardHeader>
-                      <CardContent>
-                        <div className="grid gap-4 md:grid-cols-4">
-                          <div className="text-center p-4 border rounded-lg">
-                            <p className="text-2xl font-bold text-blue-600">
-                              {viewingReport.attendance_summary.total_days}
-                            </p>
-                            <p className="text-sm text-muted-foreground">Total Hari Kerja</p>
-                          </div>
-                          <div className="text-center p-4 border rounded-lg">
-                            <p className="text-2xl font-bold text-green-600">
-                              {viewingReport.attendance_summary.present_days}
-                            </p>
-                            <p className="text-sm text-muted-foreground">Hari Hadir</p>
-                          </div>
-                          <div className="text-center p-4 border rounded-lg">
-                            <p className="text-2xl font-bold text-yellow-600">
-                              {viewingReport.attendance_summary.late_days}
-                            </p>
-                            <p className="text-sm text-muted-foreground">Hari Terlambat</p>
-                          </div>
-                          <div className="text-center p-4 border rounded-lg">
-                            <p className="text-2xl font-bold text-red-600">
-                              {viewingReport.attendance_summary.absent_days}
-                            </p>
-                            <p className="text-sm text-muted-foreground">Hari Tidak Hadir</p>
-                          </div>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                  <Card>
+                    <CardHeader>
+                      <CardTitle className="text-lg">Ringkasan Kehadiran</CardTitle>
+                    </CardHeader>
+                    <CardContent className="space-y-4">
+                      <div className="flex justify-between">
+                        <span className="text-muted-foreground">Total Hari:</span>
+                        <span className="font-medium">{viewingReport.attendance_summary?.totalDays || 0}</span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span className="text-muted-foreground">Hari Hadir:</span>
+                        <span className="font-medium">{viewingReport.attendance_summary?.presentDays || 0}</span>
+                      </div>
+                      <div className="flex justify-between items-center">
+                        <span className="text-muted-foreground">Persentase Kehadiran:</span>
+                        <div className="flex items-center gap-2">
+                          <Progress value={viewingReport.attendance_summary?.percentage || 0} className="w-20" />
+                          <span className="font-medium">{(viewingReport.attendance_summary?.percentage || 0).toFixed(1)}%</span>
                         </div>
-                      </CardContent>
-                    </Card>
-                  </TabsContent>
+                      </div>
+                    </CardContent>
+                  </Card>
 
-                  <TabsContent value="skp" className="space-y-4">
-                    <Card>
-                      <CardHeader>
-                        <CardTitle>Detail SKP</CardTitle>
-                      </CardHeader>
-                      <CardContent>
-                        <div className="space-y-4">
-                          <div className="grid gap-4 md:grid-cols-3">
-                            <div className="text-center p-4 border rounded-lg">
-                              <p className="text-2xl font-bold text-blue-600">
-                                {viewingReport.skp_summary.total_items}
-                              </p>
-                              <p className="text-sm text-muted-foreground">Total Item SKP</p>
-                            </div>
-                            <div className="text-center p-4 border rounded-lg">
-                              <p className="text-2xl font-bold text-green-600">
-                                {viewingReport.skp_summary.completed_items}
-                              </p>
-                              <p className="text-sm text-muted-foreground">Item Selesai</p>
-                            </div>
-                            <div className="text-center p-4 border rounded-lg">
-                              <p className="text-2xl font-bold text-purple-600">
-                                {viewingReport.skp_summary.average_progress.toFixed(1)}%
-                              </p>
-                              <p className="text-sm text-muted-foreground">Progress Rata-rata</p>
-                            </div>
-                          </div>
-                          <div className="mt-4">
-                            <p className="text-sm text-muted-foreground mb-2">Progress Keseluruhan</p>
-                            <Progress value={viewingReport.skp_summary.average_progress} className="h-3" />
-                          </div>
+                  <Card>
+                    <CardHeader>
+                      <CardTitle className="text-lg">Ringkasan SKP</CardTitle>
+                    </CardHeader>
+                    <CardContent className="space-y-4">
+                      <div className="flex justify-between">
+                        <span className="text-muted-foreground">Total Entri:</span>
+                        <span className="font-medium">{viewingReport.skp_summary?.totalEntries || 0}</span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span className="text-muted-foreground">Entri Selesai:</span>
+                        <span className="font-medium">{viewingReport.skp_summary?.completedEntries || 0}</span>
+                      </div>
+                      <div className="flex justify-between items-center">
+                        <span className="text-muted-foreground">Persentase Penyelesaian:</span>
+                        <div className="flex items-center gap-2">
+                          <Progress value={viewingReport.skp_summary?.percentage || 0} className="w-20" />
+                          <span className="font-medium">{(viewingReport.skp_summary?.percentage || 0).toFixed(1)}%</span>
                         </div>
-                      </CardContent>
-                    </Card>
-                  </TabsContent>
+                      </div>
+                    </CardContent>
+                  </Card>
+                </div>
 
-                  <TabsContent value="assessment" className="space-y-4">
-                    <div className="space-y-4">
-                      <Card>
-                        <CardHeader>
-                          <CardTitle className="text-lg">Penilaian Diri</CardTitle>
-                        </CardHeader>
-                        <CardContent>
-                          <p className="text-sm leading-relaxed">{viewingReport.self_assessment}</p>
-                        </CardContent>
-                      </Card>
-
-                      <Card>
-                        <CardHeader>
-                          <CardTitle className="text-lg">Pencapaian & Prestasi</CardTitle>
-                        </CardHeader>
-                        <CardContent>
-                          <pre className="text-sm leading-relaxed whitespace-pre-wrap">{viewingReport.achievements}</pre>
-                        </CardContent>
-                      </Card>
-
-                      <Card>
-                        <CardHeader>
-                          <CardTitle className="text-lg">Kendala & Tantangan</CardTitle>
-                        </CardHeader>
-                        <CardContent>
-                          <pre className="text-sm leading-relaxed whitespace-pre-wrap">{viewingReport.challenges}</pre>
-                        </CardContent>
-                      </Card>
-
-                      <Card>
-                        <CardHeader>
-                          <CardTitle className="text-lg">Rencana Perbaikan</CardTitle>
-                        </CardHeader>
-                        <CardContent>
-                          <pre className="text-sm leading-relaxed whitespace-pre-wrap">{viewingReport.improvement_plan}</pre>
-                        </CardContent>
-                      </Card>
-
-                      {viewingReport.feedback && (
-                        <Card>
-                          <CardHeader>
-                            <CardTitle className="text-lg">Feedback Supervisor</CardTitle>
-                          </CardHeader>
-                          <CardContent>
-                            <div className="p-4 bg-blue-50 border border-blue-200 rounded-lg">
-                              <p className="text-sm text-blue-800">{viewingReport.feedback}</p>
-                            </div>
-                          </CardContent>
-                        </Card>
-                      )}
-                    </div>
-                  </TabsContent>
-                </Tabs>
-              </div>
-
-              <DialogFooter>
-                <Button variant="outline" onClick={() => setViewingReport(null)}>
-                  Tutup
-                </Button>
-                {viewingReport.status === "draft" && (
-                  <Button onClick={() => {
-                    handleSubmitReport(viewingReport.id)
-                    setViewingReport(null)
-                  }}>
-                    <Send className="w-4 h-4 mr-2" />
-                    Submit untuk Approval
-                  </Button>
+                {viewingReport.ai_generated_summary && (
+                  <Card>
+                    <CardHeader>
+                      <CardTitle className="text-lg">Ringkasan AI</CardTitle>
+                    </CardHeader>
+                    <CardContent>
+                      <p className="text-sm leading-relaxed whitespace-pre-wrap">
+                        {viewingReport.ai_generated_summary}
+                      </p>
+                    </CardContent>
+                  </Card>
                 )}
-              </DialogFooter>
-            </>
+              </TabsContent>
+
+              <TabsContent value="assessment" className="space-y-6">
+                <div className="grid grid-cols-1 gap-6">
+                  {viewingReport.self_assessment && (
+                    <Card>
+                      <CardHeader>
+                        <CardTitle className="text-lg">Penilaian Diri</CardTitle>
+                      </CardHeader>
+                      <CardContent>
+                        <p className="text-sm leading-relaxed whitespace-pre-wrap">
+                          {viewingReport.self_assessment}
+                        </p>
+                      </CardContent>
+                    </Card>
+                  )}
+
+                  {viewingReport.achievements && (
+                    <Card>
+                      <CardHeader>
+                        <CardTitle className="text-lg">Pencapaian</CardTitle>
+                      </CardHeader>
+                      <CardContent>
+                        <p className="text-sm leading-relaxed whitespace-pre-wrap">
+                          {viewingReport.achievements}
+                        </p>
+                      </CardContent>
+                    </Card>
+                  )}
+
+                  {viewingReport.challenges && (
+                    <Card>
+                      <CardHeader>
+                        <CardTitle className="text-lg">Tantangan</CardTitle>
+                      </CardHeader>
+                      <CardContent>
+                        <p className="text-sm leading-relaxed whitespace-pre-wrap">
+                          {viewingReport.challenges}
+                        </p>
+                      </CardContent>
+                    </Card>
+                  )}
+
+                  {viewingReport.improvement_plan && (
+                    <Card>
+                      <CardHeader>
+                        <CardTitle className="text-lg">Rencana Perbaikan</CardTitle>
+                      </CardHeader>
+                      <CardContent>
+                        <p className="text-sm leading-relaxed whitespace-pre-wrap">
+                          {viewingReport.improvement_plan}
+                        </p>
+                      </CardContent>
+                    </Card>
+                  )}
+                </div>
+              </TabsContent>
+
+              <TabsContent value="supervisor" className="space-y-6">
+                {viewingReport.supervisor_evaluation ? (
+                  <div className="space-y-6">
+                    <Card>
+                      <CardHeader>
+                        <CardTitle className="text-lg">Informasi Evaluator</CardTitle>
+                      </CardHeader>
+                      <CardContent>
+                        <div className="flex justify-between">
+                          <span className="text-muted-foreground">Nama Atasan:</span>
+                          <span className="font-medium">{viewingReport.supervisor_evaluation.supervisor.name}</span>
+                        </div>
+                        <div className="flex justify-between">
+                          <span className="text-muted-foreground">NIP Atasan:</span>
+                          <span className="font-medium">{viewingReport.supervisor_evaluation.supervisor.nip}</span>
+                        </div>
+                      </CardContent>
+                    </Card>
+
+                    <Card>
+                      <CardHeader>
+                        <CardTitle className="text-lg">Skor Penilaian</CardTitle>
+                      </CardHeader>
+                      <CardContent className="space-y-4">
+                        <div className="grid grid-cols-2 gap-4">
+                          <div className="flex justify-between">
+                            <span className="text-muted-foreground">Kualitas Kerja:</span>
+                            <span className="font-medium">{viewingReport.supervisor_evaluation.work_quality_score}/5</span>
+                          </div>
+                          <div className="flex justify-between">
+                            <span className="text-muted-foreground">Kuantitas Kerja:</span>
+                            <span className="font-medium">{viewingReport.supervisor_evaluation.work_quantity_score}/5</span>
+                          </div>
+                          <div className="flex justify-between">
+                            <span className="text-muted-foreground">Ketepatan Waktu:</span>
+                            <span className="font-medium">{viewingReport.supervisor_evaluation.punctuality_score}/5</span>
+                          </div>
+                          <div className="flex justify-between">
+                            <span className="text-muted-foreground">Kerjasama:</span>
+                            <span className="font-medium">{viewingReport.supervisor_evaluation.cooperation_score}/5</span>
+                          </div>
+                          <div className="flex justify-between">
+                            <span className="text-muted-foreground">Inisiatif:</span>
+                            <span className="font-medium">{viewingReport.supervisor_evaluation.initiative_score}/5</span>
+                          </div>
+                          {viewingReport.supervisor_evaluation.leadership_score && (
+                            <div className="flex justify-between">
+                              <span className="text-muted-foreground">Kepemimpinan:</span>
+                              <span className="font-medium">{viewingReport.supervisor_evaluation.leadership_score}/5</span>
+                            </div>
+                          )}
+                        </div>
+                        <div className="pt-4 border-t">
+                          <div className="flex justify-between items-center">
+                            <span className="text-muted-foreground font-medium">Rating Keseluruhan:</span>
+                            <span className="font-bold text-lg">{viewingReport.supervisor_evaluation.overall_rating}/5</span>
+                          </div>
+                        </div>
+                      </CardContent>
+                    </Card>
+
+                    {viewingReport.supervisor_evaluation.supervisor_comments && (
+                      <Card>
+                        <CardHeader>
+                          <CardTitle className="text-lg">Komentar Atasan</CardTitle>
+                        </CardHeader>
+                        <CardContent>
+                          <p className="text-sm leading-relaxed whitespace-pre-wrap">
+                            {viewingReport.supervisor_evaluation.supervisor_comments}
+                          </p>
+                        </CardContent>
+                      </Card>
+                    )}
+
+                    {viewingReport.supervisor_evaluation.strengths && (
+                      <Card>
+                        <CardHeader>
+                          <CardTitle className="text-lg">Kekuatan</CardTitle>
+                        </CardHeader>
+                        <CardContent>
+                          <p className="text-sm leading-relaxed whitespace-pre-wrap">
+                            {viewingReport.supervisor_evaluation.strengths}
+                          </p>
+                        </CardContent>
+                      </Card>
+                    )}
+
+                    {viewingReport.supervisor_evaluation.development_areas && (
+                      <Card>
+                        <CardHeader>
+                          <CardTitle className="text-lg">Area Pengembangan</CardTitle>
+                        </CardHeader>
+                        <CardContent>
+                          <p className="text-sm leading-relaxed whitespace-pre-wrap">
+                            {viewingReport.supervisor_evaluation.development_areas}
+                          </p>
+                        </CardContent>
+                      </Card>
+                    )}
+
+                    {viewingReport.supervisor_evaluation.recommendations && (
+                      <Card>
+                        <CardHeader>
+                          <CardTitle className="text-lg">Rekomendasi</CardTitle>
+                        </CardHeader>
+                        <CardContent>
+                          <p className="text-sm leading-relaxed whitespace-pre-wrap">
+                            {viewingReport.supervisor_evaluation.recommendations}
+                          </p>
+                        </CardContent>
+                      </Card>
+                    )}
+                  </div>
+                ) : (
+                  <Card>
+                    <CardContent className="text-center py-8">
+                      <User className="w-12 h-12 text-muted-foreground mx-auto mb-4" />
+                      <h3 className="text-lg font-medium mb-2">Belum Ada Evaluasi Atasan</h3>
+                      <p className="text-muted-foreground">
+                        Evaluasi dari atasan belum tersedia untuk laporan ini
+                      </p>
+                    </CardContent>
+                  </Card>
+                )}
+              </TabsContent>
+
+              <TabsContent value="signature" className="space-y-6">
+                {viewingReport.digital_signature ? (
+                  <Card>
+                    <CardHeader>
+                      <CardTitle className="text-lg">Tanda Tangan Digital</CardTitle>
+                    </CardHeader>
+                    <CardContent>
+                      <div className="flex justify-between">
+                        <span className="text-muted-foreground">Ditandatangani oleh:</span>
+                        <span className="font-medium">{viewingReport.digital_signature.signer.name}</span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span className="text-muted-foreground">NIP:</span>
+                        <span className="font-medium">{viewingReport.digital_signature.signer.nip}</span>
+                      </div>
+                    </CardContent>
+                  </Card>
+                ) : (
+                  <Card>
+                    <CardContent className="text-center py-8">
+                      <ClipboardCheck className="w-12 h-12 text-muted-foreground mx-auto mb-4" />
+                      <h3 className="text-lg font-medium mb-2">Belum Ditandatangani</h3>
+                      <p className="text-muted-foreground">
+                        Laporan ini belum memiliki tanda tangan digital
+                      </p>
+                    </CardContent>
+                  </Card>
+                )}
+              </TabsContent>
+            </Tabs>
           )}
         </DialogContent>
       </Dialog>

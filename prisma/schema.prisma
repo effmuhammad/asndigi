@@ -83,6 +83,30 @@ enum OrganizationalPredicate {
   KURANG
 }
 
+enum WorkResultRating {
+  DIATAS_EKSPEKTASI
+  SESUAI_EKSPEKTASI
+  DIBAWAH_EKSPEKTASI
+}
+
+enum BehaviorRating {
+  DIATAS_EKSPEKTASI
+  SESUAI_EKSPEKTASI
+  DIBAWAH_EKSPEKTASI
+}
+
+enum PerformancePredicate {
+  SANGAT_BAIK
+  BAIK
+  KURANG
+}
+
+enum DigitalSignatureStatus {
+  PENDING
+  SIGNED
+  REJECTED
+}
+
 
 model User {
   id                String           @id @default(uuid(7))
@@ -110,6 +134,10 @@ model User {
   supervised_skp_monthly SkpMonthlyEntry[] @relation("SkpMonthlySupervisor")
   profile             Profile?
   created_organizational_reports OrganizationalPerformanceReport[] @relation("OrganizationalReportCreator")
+  annual_performance_reports AnnualPerformanceReport[]
+  supervisor_evaluations SupervisorEvaluation[] @relation("SupervisorEvaluationSupervisor")
+  received_evaluations SupervisorEvaluation[] @relation("SupervisorEvaluationEmployee")
+  digital_signatures DigitalSignature[]
   
   @@map("users")
 }
@@ -333,4 +361,91 @@ model OrganizationalPerformanceReport {
   @@index([year])
   @@index([predicate])
   @@map("organizational_performance_reports")
+}
+
+model AnnualPerformanceReport {
+  id                        String                   @id @default(uuid(7))
+  user_id                   String
+  year                      Int
+  attendance_summary        Json                     @default("{}")
+  skp_summary              Json                     @default("{}")
+  work_result_rating       WorkResultRating
+  behavior_rating          BehaviorRating
+  performance_predicate    PerformancePredicate
+  ai_generated_summary     String?
+  self_assessment          String?
+  achievements             String?
+  challenges               String?
+  improvement_plan         String?
+  status                   ReportStatus             @default(DRAFT)
+  submitted_at             DateTime?
+  approved_at              DateTime?
+  created_at               DateTime                 @default(now())
+  updated_at               DateTime                 @updatedAt
+
+  // Relations
+  user                     User                     @relation(fields: [user_id], references: [id], onDelete: Cascade)
+  supervisor_evaluation    SupervisorEvaluation?
+  digital_signature        DigitalSignature?
+
+  @@unique([user_id, year])
+  @@index([user_id])
+  @@index([year])
+  @@index([status])
+  @@index([performance_predicate])
+  @@map("annual_performance_reports")
+}
+
+model SupervisorEvaluation {
+  id                       String                   @id @default(uuid(7))
+  annual_report_id         String                   @unique
+  supervisor_id            String
+  employee_id              String
+  work_quality_score       Int                      // 1-5 scale
+  work_quantity_score      Int                      // 1-5 scale
+  punctuality_score        Int                      // 1-5 scale
+  cooperation_score        Int                      // 1-5 scale
+  initiative_score         Int                      // 1-5 scale
+  leadership_score         Int?                     // 1-5 scale (optional for non-leadership roles)
+  overall_rating           Decimal                  @db.Decimal(3, 2)
+  supervisor_comments      String?
+  recommendations          String?
+  development_areas        String?
+  strengths                String?
+  created_at               DateTime                 @default(now())
+  updated_at               DateTime                 @updatedAt
+
+  // Relations
+  annual_report            AnnualPerformanceReport  @relation(fields: [annual_report_id], references: [id], onDelete: Cascade)
+  supervisor               User                     @relation("SupervisorEvaluationSupervisor", fields: [supervisor_id], references: [id])
+  employee                 User                     @relation("SupervisorEvaluationEmployee", fields: [employee_id], references: [id])
+
+  @@index([supervisor_id])
+  @@index([employee_id])
+  @@index([annual_report_id])
+  @@map("supervisor_evaluations")
+}
+
+model DigitalSignature {
+  id                       String                   @id @default(uuid(7))
+  annual_report_id         String                   @unique
+  signer_id                String
+  signature_data           String                   // Base64 encoded signature or hash
+  signature_timestamp      DateTime
+  ip_address               String?
+  user_agent               String?
+  status                   DigitalSignatureStatus   @default(PENDING)
+  verification_code        String?
+  expires_at               DateTime?
+  created_at               DateTime                 @default(now())
+
+  // Relations
+  annual_report            AnnualPerformanceReport  @relation(fields: [annual_report_id], references: [id], onDelete: Cascade)
+  signer                   User                     @relation(fields: [signer_id], references: [id])
+
+  @@index([signer_id])
+  @@index([annual_report_id])
+  @@index([status])
+  @@index([signature_timestamp])
+  @@map("digital_signatures")
 }

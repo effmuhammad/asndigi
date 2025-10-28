@@ -13,6 +13,9 @@ async function main() {
   console.log('🌱 Starting database seeding...')
 
   // Clear existing data in correct order (respecting foreign key constraints)
+  await prisma.digitalSignature.deleteMany()
+  await prisma.supervisorEvaluation.deleteMany()
+  await prisma.annualPerformanceReport.deleteMany()
   await prisma.organizationalPerformanceReport.deleteMany()
   await prisma.trainingRecord.deleteMany()
   await prisma.skHistory.deleteMany()
@@ -508,90 +511,441 @@ async function main() {
   // 8. Create SKP Monthly Entries and Files
   console.log('📋 Creating SKP monthly entries...')
   
-  const skpEntries = await Promise.all([
-    prisma.skpMonthlyEntry.create({
-      data: {
-        user_id: staff1.id,
-        month: 1,
-        year: 2025,
-        sequence_no: 1,
+  // Define SKP indicators for each user
+  const skpIndicators = {
+    [staff1.id]: [
+      {
         indicator: 'Mengembangkan sistem informasi kepegawaian',
         action_plan: 'Analisis kebutuhan, desain sistem, dan implementasi',
         target_realization: 'Sistem selesai 100% sesuai timeline',
-        supporting_data: 'Dokumentasi analisis dan hasil testing',
-        feedback: 'Sistem berjalan dengan baik',
-        status: 'APPROVED',
-        created_by: staff1.id,
-        supervisor_id: supervisor1.id
-      }
-    }),
-    prisma.skpMonthlyEntry.create({
-      data: {
-        user_id: staff1.id,
-        month: 1,
-        year: 2025,
-        sequence_no: 2,
+        supporting_data: 'Dokumentasi analisis dan hasil testing'
+      },
+      {
         indicator: 'Memberikan pelatihan IT kepada pegawai',
         action_plan: 'Menyiapkan materi dan melaksanakan pelatihan',
-        target_realization: '20 pegawai terlatih',
-        supporting_data: 'Daftar hadir dan evaluasi pelatihan',
-        feedback: 'Pelatihan berjalan lancar',
-        status: 'SUBMITTED',
-        created_by: staff1.id,
-        supervisor_id: supervisor1.id
+        target_realization: '20 pegawai terlatih per bulan',
+        supporting_data: 'Daftar hadir dan evaluasi pelatihan'
       }
-    }),
-    prisma.skpMonthlyEntry.create({
-      data: {
-        user_id: staff2.id,
-        month: 1,
-        year: 2025,
-        sequence_no: 1,
+    ],
+    [staff2.id]: [
+      {
         indicator: 'Menyusun laporan keuangan bulanan',
         action_plan: 'Mengumpulkan data dan menyusun laporan',
         target_realization: 'Laporan selesai tepat waktu',
-        supporting_data: 'Laporan keuangan dan supporting documents',
-        feedback: 'Laporan akurat dan tepat waktu',
+        supporting_data: 'Laporan keuangan dan supporting documents'
+      },
+      {
+        indicator: 'Melakukan analisis anggaran departemen',
+        action_plan: 'Review anggaran dan memberikan rekomendasi',
+        target_realization: 'Analisis selesai setiap bulan',
+        supporting_data: 'Laporan analisis dan rekomendasi'
+      }
+    ],
+    [staff3.id]: [
+      {
+        indicator: 'Melakukan inspeksi teknis pelabuhan',
+        action_plan: 'Inspeksi rutin fasilitas dan peralatan pelabuhan',
+        target_realization: 'Inspeksi 10 lokasi per bulan',
+        supporting_data: 'Laporan inspeksi dan dokumentasi foto'
+      },
+      {
+        indicator: 'Pemeliharaan peralatan teknis pelabuhan',
+        action_plan: 'Maintenance preventif dan korektif peralatan',
+        target_realization: 'Semua peralatan berfungsi optimal',
+        supporting_data: 'Log maintenance dan laporan kondisi'
+      }
+    ]
+  }
+
+  // Create SKP entries for all users for January-December 2025
+  const skpEntries = []
+  const skpUsers = [staff1, staff2, staff3]
+  const months = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12]
+  const statuses: ('APPROVED' | 'SUBMITTED' | 'DRAFT')[] = ['APPROVED', 'SUBMITTED', 'DRAFT']
+  const feedbacks = [
+    'Pekerjaan dilaksanakan dengan baik',
+    'Target tercapai sesuai rencana',
+    'Perlu peningkatan di beberapa aspek',
+    'Hasil memuaskan dan tepat waktu',
+    'Kualitas kerja sangat baik'
+  ]
+
+  for (const user of skpUsers) {
+    const supervisorId = user.id === staff3.id ? supervisor2.id : supervisor1.id
+    
+    for (const month of months) {
+      const indicators = skpIndicators[user.id]
+      
+      for (let seqNo = 1; seqNo <= indicators.length; seqNo++) {
+        const indicator = indicators[seqNo - 1]
+        const randomStatus = statuses[Math.floor(Math.random() * statuses.length)]
+        const randomFeedback = feedbacks[Math.floor(Math.random() * feedbacks.length)]
+        
+        const entry = await prisma.skpMonthlyEntry.create({
+          data: {
+            user_id: user.id,
+            month: month,
+            year: 2025,
+            sequence_no: seqNo,
+            indicator: indicator.indicator,
+            action_plan: indicator.action_plan,
+            target_realization: indicator.target_realization,
+            supporting_data: indicator.supporting_data,
+            feedback: randomFeedback,
+            status: randomStatus,
+            created_by: user.id,
+            supervisor_id: supervisorId
+          }
+        })
+        
+        skpEntries.push(entry)
+      }
+    }
+  }
+
+  // Create SKP Monthly Files
+  console.log('📄 Creating SKP monthly files...')
+  
+  // Create sample files for some entries (first 3 entries of each month for demonstration)
+  const sampleFiles = []
+  for (let i = 0; i < Math.min(36, skpEntries.length); i++) { // 3 files per month for 12 months
+    const entry = skpEntries[i]
+    const monthNames = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
+    const monthName = monthNames[entry.month - 1]
+    
+    sampleFiles.push({
+      entry_id: entry.id,
+      file_name: `skp_${entry.user_id}_${monthName}2025_${entry.sequence_no}.pdf`,
+      original_name: `SKP ${monthName} 2025 - Sequence ${entry.sequence_no}.pdf`,
+      file_path: `/uploads/skp/skp_${entry.user_id}_${monthName}2025_${entry.sequence_no}.pdf`,
+      file_type: 'application/pdf',
+      file_size: Math.floor(Math.random() * 2000000) + 500000 // Random size between 500KB - 2.5MB
+    })
+  }
+
+  await prisma.skpMonthlyFile.createMany({
+    data: sampleFiles
+  })
+
+  // 9. Create Annual Performance Reports
+  console.log('📊 Creating annual performance reports...')
+  
+  const annualReports = await Promise.all([
+    // Staff 1 - 2023 Report (Approved)
+    prisma.annualPerformanceReport.create({
+      data: {
+        user_id: staff1.id,
+        year: 2023,
+        attendance_summary: JSON.stringify({
+          total_working_days: 250,
+          present_days: 235,
+          absent_days: 8,
+          sick_days: 4,
+          leave_days: 3,
+          attendance_percentage: 94.0
+        }),
+        skp_summary: JSON.stringify({
+          total_targets: 5,
+          completed_targets: 4,
+          in_progress_targets: 1,
+          completion_percentage: 85.0,
+          average_score: 87.5
+        }),
+        work_result_rating: 'SESUAI_EKSPEKTASI',
+        behavior_rating: 'SESUAI_EKSPEKTASI',
+        performance_predicate: 'BAIK',
+        ai_generated_summary: 'Pegawai menunjukkan kinerja yang konsisten dengan tingkat kehadiran yang baik (94%) dan pencapaian SKP yang memuaskan (85%). Memiliki dedikasi tinggi dalam menyelesaikan tugas-tugas yang diberikan.',
+        self_assessment: 'Saya merasa telah memberikan kontribusi yang baik untuk organisasi. Tingkat kehadiran saya konsisten dan saya berhasil menyelesaikan sebagian besar target SKP yang ditetapkan.',
+        achievements: 'Berhasil mengimplementasikan sistem informasi baru, meningkatkan efisiensi proses kerja sebesar 20%, dan menyelesaikan 4 dari 5 target SKP dengan baik.',
+        challenges: 'Menghadapi kendala dalam koordinasi antar divisi dan keterbatasan waktu untuk menyelesaikan satu target SKP yang kompleks.',
+        improvement_plan: 'Akan meningkatkan kemampuan komunikasi dan koordinasi, serta mengikuti pelatihan tambahan untuk meningkatkan keterampilan teknis.',
         status: 'APPROVED',
-        created_by: staff2.id,
-        supervisor_id: supervisor1.id
+        submitted_at: new Date('2024-01-15'),
+        approved_at: new Date('2024-01-20')
+      }
+    }),
+
+    // Staff 1 - 2024 Report (Submitted)
+    prisma.annualPerformanceReport.create({
+      data: {
+        user_id: staff1.id,
+        year: 2024,
+        attendance_summary: JSON.stringify({
+          total_working_days: 252,
+          present_days: 240,
+          absent_days: 6,
+          sick_days: 3,
+          leave_days: 3,
+          attendance_percentage: 95.2
+        }),
+        skp_summary: JSON.stringify({
+          total_targets: 6,
+          completed_targets: 5,
+          in_progress_targets: 1,
+          completion_percentage: 90.0,
+          average_score: 89.2
+        }),
+        work_result_rating: 'SESUAI_EKSPEKTASI',
+        behavior_rating: 'DIATAS_EKSPEKTASI',
+        performance_predicate: 'BAIK',
+        ai_generated_summary: 'Terjadi peningkatan kinerja yang signifikan dibandingkan tahun sebelumnya. Tingkat kehadiran meningkat menjadi 95.2% dan pencapaian SKP mencapai 90%. Menunjukkan perilaku kerja yang sangat baik.',
+        self_assessment: 'Tahun ini saya merasa lebih berkembang dan mampu memberikan kontribusi yang lebih besar. Saya berhasil meningkatkan kinerja di berbagai aspek.',
+        achievements: 'Memimpin proyek digitalisasi dokumen, meningkatkan produktivitas tim sebesar 25%, dan mencapai 90% target SKP dengan kualitas yang sangat baik.',
+        challenges: 'Adaptasi dengan teknologi baru dan mengelola beban kerja yang meningkat akibat tanggung jawab tambahan.',
+        improvement_plan: 'Akan mengikuti sertifikasi profesional dan mengembangkan kemampuan kepemimpinan untuk persiapan karir ke jenjang yang lebih tinggi.',
+        status: 'SUBMITTED',
+        submitted_at: new Date('2025-01-10')
+      }
+    }),
+
+    // Staff 2 - 2023 Report (Approved)
+    prisma.annualPerformanceReport.create({
+      data: {
+        user_id: staff2.id,
+        year: 2023,
+        attendance_summary: JSON.stringify({
+          total_working_days: 250,
+          present_days: 220,
+          absent_days: 15,
+          sick_days: 8,
+          leave_days: 7,
+          attendance_percentage: 88.0
+        }),
+        skp_summary: JSON.stringify({
+          total_targets: 4,
+          completed_targets: 3,
+          in_progress_targets: 1,
+          completion_percentage: 80.0,
+          average_score: 82.5
+        }),
+        work_result_rating: 'SESUAI_EKSPEKTASI',
+        behavior_rating: 'SESUAI_EKSPEKTASI',
+        performance_predicate: 'BAIK',
+        ai_generated_summary: 'Kinerja pegawai cukup baik dengan pencapaian SKP 80% dan tingkat kehadiran 88%. Perlu peningkatan dalam hal disiplin kehadiran dan optimalisasi pencapaian target.',
+        self_assessment: 'Saya berusaha memberikan yang terbaik meskipun menghadapi beberapa kendala kesehatan. Saya berkomitmen untuk terus meningkatkan kinerja.',
+        achievements: 'Berhasil menyelesaikan analisis keuangan tahunan, mengoptimalkan proses budgeting, dan memberikan rekomendasi penghematan anggaran sebesar 15%.',
+        challenges: 'Mengalami beberapa masalah kesehatan yang mempengaruhi kehadiran dan kesulitan dalam menggunakan sistem baru.',
+        improvement_plan: 'Akan menjaga kesehatan dengan lebih baik, mengikuti pelatihan sistem informasi, dan meningkatkan disiplin kehadiran.',
+        status: 'APPROVED',
+        submitted_at: new Date('2024-01-18'),
+        approved_at: new Date('2024-01-25')
+      }
+    }),
+
+    // Staff 2 - 2024 Report (Draft)
+    prisma.annualPerformanceReport.create({
+      data: {
+        user_id: staff2.id,
+        year: 2024,
+        attendance_summary: JSON.stringify({
+          total_working_days: 252,
+          present_days: 230,
+          absent_days: 12,
+          sick_days: 5,
+          leave_days: 5,
+          attendance_percentage: 91.3
+        }),
+        skp_summary: JSON.stringify({
+          total_targets: 5,
+          completed_targets: 4,
+          in_progress_targets: 1,
+          completion_percentage: 85.0,
+          average_score: 85.8
+        }),
+        work_result_rating: 'SESUAI_EKSPEKTASI',
+        behavior_rating: 'SESUAI_EKSPEKTASI',
+        performance_predicate: 'BAIK',
+        self_assessment: 'Tahun ini saya merasa ada peningkatan yang signifikan dalam kinerja saya. Kehadiran lebih baik dan pencapaian target juga meningkat.',
+        achievements: 'Mengimplementasikan sistem pelaporan keuangan digital, meningkatkan akurasi laporan sebesar 30%, dan menyelesaikan audit internal tanpa temuan signifikan.',
+        challenges: 'Masih menghadapi tantangan dalam hal manajemen waktu dan koordinasi dengan unit kerja lain.',
+        improvement_plan: 'Akan mengikuti pelatihan manajemen waktu dan komunikasi efektif untuk meningkatkan koordinasi kerja.',
+        status: 'DRAFT'
+      }
+    }),
+
+    // Staff 3 - 2023 Report (Approved)
+    prisma.annualPerformanceReport.create({
+      data: {
+        user_id: staff3.id,
+        year: 2023,
+        attendance_summary: JSON.stringify({
+          total_working_days: 250,
+          present_days: 245,
+          absent_days: 3,
+          sick_days: 1,
+          leave_days: 1,
+          attendance_percentage: 98.0
+        }),
+        skp_summary: JSON.stringify({
+          total_targets: 5,
+          completed_targets: 5,
+          in_progress_targets: 0,
+          completion_percentage: 100.0,
+          average_score: 92.0
+        }),
+        work_result_rating: 'DIATAS_EKSPEKTASI',
+        behavior_rating: 'DIATAS_EKSPEKTASI',
+        performance_predicate: 'SANGAT_BAIK',
+        ai_generated_summary: 'Pegawai menunjukkan kinerja yang sangat luar biasa dengan tingkat kehadiran 98% dan pencapaian SKP 100%. Merupakan contoh teladan bagi pegawai lainnya.',
+        self_assessment: 'Saya sangat bangga dengan pencapaian tahun ini. Berhasil menyelesaikan semua target dengan kualitas yang tinggi dan selalu hadir tepat waktu.',
+        achievements: 'Menyelesaikan 100% target SKP, memimpin proyek modernisasi pelabuhan, meningkatkan efisiensi operasional sebesar 40%, dan meraih penghargaan pegawai terbaik.',
+        challenges: 'Tantangan utama adalah mengelola proyek besar sambil mempertahankan kualitas pekerjaan rutin.',
+        improvement_plan: 'Akan berbagi pengetahuan dengan rekan kerja melalui mentoring dan mengikuti pelatihan kepemimpinan untuk pengembangan karir.',
+        status: 'APPROVED',
+        submitted_at: new Date('2024-01-12'),
+        approved_at: new Date('2024-01-15')
+      }
+    }),
+
+    // Staff 3 - 2024 Report (Submitted)
+    prisma.annualPerformanceReport.create({
+      data: {
+        user_id: staff3.id,
+        year: 2024,
+        attendance_summary: JSON.stringify({
+          total_working_days: 252,
+          present_days: 248,
+          absent_days: 2,
+          sick_days: 1,
+          leave_days: 1,
+          attendance_percentage: 98.4
+        }),
+        skp_summary: JSON.stringify({
+          total_targets: 6,
+          completed_targets: 6,
+          in_progress_targets: 0,
+          completion_percentage: 100.0,
+          average_score: 94.5
+        }),
+        work_result_rating: 'DIATAS_EKSPEKTASI',
+        behavior_rating: 'DIATAS_EKSPEKTASI',
+        performance_predicate: 'SANGAT_BAIK',
+        ai_generated_summary: 'Konsistensi kinerja yang luar biasa dengan peningkatan di semua aspek. Tingkat kehadiran 98.4% dan pencapaian SKP 100% dengan skor rata-rata 94.5. Menunjukkan dedikasi dan profesionalisme tinggi.',
+        self_assessment: 'Tahun ini saya berhasil mempertahankan dan bahkan meningkatkan kinerja. Saya merasa semakin berkembang dan siap mengambil tanggung jawab yang lebih besar.',
+        achievements: 'Mencapai 100% target SKP dengan skor tertinggi, memimpin implementasi sistem keamanan pelabuhan, mengurangi incident rate sebesar 50%, dan menjadi mentor untuk pegawai baru.',
+        challenges: 'Mengelola ekspektasi yang semakin tinggi dan menyeimbangkan peran sebagai teknisi dan mentor.',
+        improvement_plan: 'Akan mengambil sertifikasi internasional di bidang keamanan pelabuhan dan mengembangkan program pelatihan untuk tim.',
+        status: 'SUBMITTED',
+        submitted_at: new Date('2025-01-08')
       }
     })
   ])
 
-  // Create SKP Monthly Files
-  await prisma.skpMonthlyFile.createMany({
-    data: [
-      {
-        entry_id: skpEntries[0].id,
-        file_name: 'dokumentasi_sistem_jan2025.pdf',
-        original_name: 'Dokumentasi Sistem Januari 2025.pdf',
-        file_path: '/uploads/skp/dokumentasi_sistem_jan2025.pdf',
-        file_type: 'application/pdf',
-        file_size: 2048576
-      },
-      {
-        entry_id: skpEntries[1].id,
-        file_name: 'daftar_hadir_pelatihan.pdf',
-        original_name: 'Daftar Hadir Pelatihan IT.pdf',
-        file_path: '/uploads/skp/daftar_hadir_pelatihan.pdf',
-        file_type: 'application/pdf',
-        file_size: 1024768
-      },
-      {
-        entry_id: skpEntries[2].id,
-        file_name: 'laporan_keuangan_jan2025.xlsx',
-        original_name: 'Laporan Keuangan Januari 2025.xlsx',
-        file_path: '/uploads/skp/laporan_keuangan_jan2025.xlsx',
-        file_type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
-        file_size: 3072384
+  // Create Supervisor Evaluations for approved reports
+  console.log('👨‍💼 Creating supervisor evaluations...')
+  
+  const supervisorEvaluations = await Promise.all([
+    // Evaluation for Staff 1 - 2023 Report (by Supervisor 1)
+    prisma.supervisorEvaluation.create({
+      data: {
+        annual_report_id: annualReports[0].id, // Staff 1 - 2023
+        supervisor_id: supervisor1.id,
+        employee_id: staff1.id,
+        work_quality_score: 4,
+        work_quantity_score: 4,
+        punctuality_score: 5,
+        cooperation_score: 4,
+        initiative_score: 4,
+        leadership_score: 3,
+        overall_rating: 4.0,
+        supervisor_comments: 'Andi menunjukkan kinerja yang konsisten dan dapat diandalkan. Kualitas pekerjaannya baik dan selalu menyelesaikan tugas tepat waktu. Perlu sedikit peningkatan dalam hal inisiatif dan kepemimpinan.',
+        recommendations: 'Disarankan untuk mengikuti pelatihan kepemimpinan dan diberikan tanggung jawab proyek yang lebih besar untuk mengembangkan kemampuan manajerial.',
+        development_areas: 'Kepemimpinan, komunikasi strategis, dan pengambilan keputusan dalam situasi kompleks.',
+        strengths: 'Disiplin tinggi, keterampilan teknis yang solid, dan kemampuan bekerja dalam tim yang baik.'
       }
-    ]
-  })
+    }),
+
+    // Evaluation for Staff 2 - 2023 Report (by Supervisor 1)
+    prisma.supervisorEvaluation.create({
+      data: {
+        annual_report_id: annualReports[2].id, // Staff 2 - 2023
+        supervisor_id: supervisor1.id,
+        employee_id: staff2.id,
+        work_quality_score: 4,
+        work_quantity_score: 3,
+        punctuality_score: 3,
+        cooperation_score: 4,
+        initiative_score: 3,
+        leadership_score: 3,
+        overall_rating: 3.3,
+        supervisor_comments: 'Maya memiliki kemampuan analisis yang baik, namun perlu peningkatan dalam hal kedisiplinan kehadiran. Kualitas pekerjaan cukup baik tetapi kuantitas perlu ditingkatkan.',
+        recommendations: 'Perlu fokus pada peningkatan disiplin kehadiran dan manajemen waktu. Disarankan mengikuti pelatihan produktivitas kerja.',
+        development_areas: 'Manajemen waktu, disiplin kehadiran, dan peningkatan output kerja.',
+        strengths: 'Kemampuan analisis keuangan yang baik, teliti dalam bekerja, dan memiliki pemahaman yang mendalam tentang regulasi keuangan.'
+      }
+    }),
+
+    // Evaluation for Staff 3 - 2023 Report (by Supervisor 2)
+    prisma.supervisorEvaluation.create({
+      data: {
+        annual_report_id: annualReports[4].id, // Staff 3 - 2023
+        supervisor_id: supervisor2.id,
+        employee_id: staff3.id,
+        work_quality_score: 5,
+        work_quantity_score: 5,
+        punctuality_score: 5,
+        cooperation_score: 5,
+        initiative_score: 5,
+        leadership_score: 4,
+        overall_rating: 4.8,
+        supervisor_comments: 'Rizki adalah pegawai teladan dengan kinerja yang luar biasa di semua aspek. Selalu proaktif, inovatif, dan menjadi contoh bagi rekan kerja lainnya. Sangat direkomendasikan untuk promosi.',
+        recommendations: 'Sangat layak untuk dipromosikan ke posisi yang lebih tinggi. Dapat diberikan tanggung jawab sebagai mentor untuk pegawai junior.',
+        development_areas: 'Pengembangan kemampuan strategis dan manajemen organisasi untuk persiapan posisi kepemimpinan.',
+        strengths: 'Kinerja luar biasa di semua aspek, kepemimpinan natural, inovasi tinggi, dan dedikasi yang sangat baik.'
+      }
+    })
+  ])
+
+  // Create Digital Signatures for approved reports
+  console.log('🔐 Creating digital signatures...')
+  
+  const digitalSignatures = await Promise.all([
+    // Digital Signature for Staff 1 - 2023 Report
+    prisma.digitalSignature.create({
+      data: {
+        annual_report_id: annualReports[0].id, // Staff 1 - 2023
+        signer_id: supervisor1.id,
+        signature_data: 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiIxMjM0NTY3ODkwIiwibmFtZSI6IkRyYS4gU2l0aSBOdXJoYWxpemEsIE0uTSIsImlhdCI6MTUxNjIzOTAyMn0.signature_hash_staff1_2023',
+        signature_timestamp: new Date('2024-01-20T10:30:00'),
+        ip_address: '192.168.1.100',
+        user_agent: 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36',
+        status: 'SIGNED',
+        verification_code: 'SIGN-2024-001-APPROVED'
+      }
+    }),
+
+    // Digital Signature for Staff 2 - 2023 Report
+    prisma.digitalSignature.create({
+      data: {
+        annual_report_id: annualReports[2].id, // Staff 2 - 2023
+        signer_id: supervisor1.id,
+        signature_data: 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiIxMjM0NTY3ODkwIiwibmFtZSI6IkRyYS4gU2l0aSBOdXJoYWxpemEsIE0uTSIsImlhdCI6MTUxNjIzOTAyMn0.signature_hash_staff2_2023',
+        signature_timestamp: new Date('2024-01-25T14:15:00'),
+        ip_address: '192.168.1.101',
+        user_agent: 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36',
+        status: 'SIGNED',
+        verification_code: 'SIGN-2024-002-APPROVED'
+      }
+    }),
+
+    // Digital Signature for Staff 3 - 2023 Report
+    prisma.digitalSignature.create({
+      data: {
+        annual_report_id: annualReports[4].id, // Staff 3 - 2023
+        signer_id: supervisor2.id,
+        signature_data: 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiIxMjM0NTY3ODkwIiwibmFtZSI6IklyLiBBaG1hZCBXaWpheWEsIE0uVCIsImlhdCI6MTUxNjIzOTAyMn0.signature_hash_staff3_2023',
+        signature_timestamp: new Date('2024-01-15T16:45:00'),
+        ip_address: '192.168.1.102',
+        user_agent: 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36',
+        status: 'SIGNED',
+        verification_code: 'SIGN-2024-003-APPROVED'
+      }
+    })
+  ])
 
   console.log('✅ Database seeding completed successfully!')
 
-  // 9. Create Organizational Performance Reports
+  // 10. Create Organizational Performance Reports
   console.log('🏢 Creating organizational performance reports...')
   
   const organizationalReports = await Promise.all([
@@ -636,6 +990,9 @@ async function main() {
 - Approvals: 2 approval records
 - SKP Monthly Entries: 3 entries
 - SKP Monthly Files: 3 files
+- Annual Performance Reports: ${annualReports.length} reports (2023-2024)
+- Supervisor Evaluations: ${supervisorEvaluations.length} evaluations
+- Digital Signatures: ${digitalSignatures.length} signatures
 - Organizational Performance Reports: 2 reports (2023-2024)
   `)
 }

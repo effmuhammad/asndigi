@@ -12,7 +12,7 @@ import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { toast } from "sonner"
-import { Plus, Edit, Trash2, FileText, Upload, Download, Eye } from "lucide-react"
+import { Plus, Edit, Trash2, FileText, Upload, Download, Eye, Brain, Loader2 } from "lucide-react"
 import { format } from "date-fns"
 import { id } from "date-fns/locale"
 
@@ -58,6 +58,27 @@ interface FormData {
   supportingData: string
 }
 
+interface SkpSummaryResponse {
+  summary: string
+  analysis: {
+    achievements: string[]
+    challenges: string[]
+    recommendations: string[]
+  }
+  performance_score: number
+}
+
+interface AiSummaryData {
+  employee: {
+    name: string
+    nip: string
+  }
+  period: string
+  total_entries: number
+  summary: SkpSummaryResponse
+  generated_at: string
+}
+
 const MONTHS = [
   { value: 1, label: "Januari" },
   { value: 2, label: "Februari" },
@@ -94,6 +115,9 @@ export default function SkpBulananPage() {
   const [isDialogOpen, setIsDialogOpen] = useState(false)
   const [editingEntry, setEditingEntry] = useState<SkpMonthlyEntry | null>(null)
   const [selectedYear, setSelectedYear] = useState(new Date().getFullYear())
+  const [aiSummary, setAiSummary] = useState<AiSummaryData | null>(null)
+  const [isGeneratingSummary, setIsGeneratingSummary] = useState(false)
+  const [showAiSummary, setShowAiSummary] = useState(false)
   const [formData, setFormData] = useState<FormData>({
     month: new Date().getMonth() + 1,
     year: new Date().getFullYear(),
@@ -103,7 +127,7 @@ export default function SkpBulananPage() {
     supportingData: ""
   })
 
-  // Load SKP entries
+  // Load entries from API
   const loadEntries = async () => {
     try {
       setIsLoading(true)
@@ -112,7 +136,7 @@ export default function SkpBulananPage() {
         const data = await response.json()
         setEntries(data.data || [])
       } else {
-        toast.error("Gagal memuat data Sasaran Kinerja Pegawai")
+        toast.error("Gagal memuat data SKP")
       }
     } catch (error) {
       console.error("Error loading entries:", error)
@@ -122,6 +146,7 @@ export default function SkpBulananPage() {
     }
   }
 
+  // Load data when session or year changes
   useEffect(() => {
     if (session) {
       loadEntries()
@@ -133,26 +158,32 @@ export default function SkpBulananPage() {
     e.preventDefault()
     
     try {
-      const url = editingEntry ? `/api/skp/monthly/${editingEntry.id}` : "/api/skp/monthly"
-      const method = editingEntry ? "PUT" : "POST"
+      const url = editingEntry ? `/api/skp/monthly/${editingEntry.id}` : '/api/skp/monthly'
+      const method = editingEntry ? 'PUT' : 'POST'
       
       const response = await fetch(url, {
         method,
         headers: {
-          "Content-Type": "application/json"
+          'Content-Type': 'application/json'
         },
-        body: JSON.stringify(formData)
+        body: JSON.stringify({
+          month: formData.month,
+          year: formData.year,
+          indicator: formData.indicator,
+          actionPlan: formData.actionPlan,
+          targetRealization: formData.targetRealization,
+          supportingData: formData.supportingData || undefined
+        })
       })
 
       if (response.ok) {
-        toast.success(editingEntry ? "Sasaran Kinerja Pegawai berhasil diperbarui" : "Sasaran Kinerja Pegawai berhasil ditambahkan")
+        toast.success(editingEntry ? "SKP berhasil diperbarui" : "SKP berhasil ditambahkan")
         setIsDialogOpen(false)
-        setEditingEntry(null)
         resetForm()
         loadEntries()
       } else {
         const error = await response.json()
-        toast.error(error.error || "Terjadi kesalahan")
+        toast.error(error.error || "Gagal menyimpan data")
       }
     } catch (error) {
       console.error("Error submitting form:", error)
@@ -166,15 +197,14 @@ export default function SkpBulananPage() {
 
     try {
       const response = await fetch(`/api/skp/monthly/${id}`, {
-        method: "DELETE"
+        method: 'DELETE'
       })
 
       if (response.ok) {
-        toast.success("Sasaran Kinerja Pegawai berhasil dihapus")
+        toast.success("SKP berhasil dihapus")
         loadEntries()
       } else {
-        const error = await response.json()
-        toast.error(error.error || "Gagal menghapus data")
+        toast.error("Gagal menghapus data")
       }
     } catch (error) {
       console.error("Error deleting entry:", error)
@@ -206,18 +236,49 @@ export default function SkpBulananPage() {
       targetRealization: "",
       supportingData: ""
     })
+    setEditingEntry(null)
   }
 
   // Handle dialog close
   const handleDialogClose = () => {
     setIsDialogOpen(false)
-    setEditingEntry(null)
     resetForm()
   }
 
   // Generate years for selection
   const currentYear = new Date().getFullYear()
   const years = Array.from({ length: 5 }, (_, i) => currentYear - 2 + i)
+
+  // Generate AI Summary
+  const generateAiSummary = async () => {
+    try {
+      setIsGeneratingSummary(true)
+      const response = await fetch('/api/skp/summary', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          year: selectedYear
+        })
+      })
+
+      if (response.ok) {
+        const data = await response.json()
+        setAiSummary(data.data)
+        setShowAiSummary(true)
+        toast.success("Ringkasan AI berhasil dibuat")
+      } else {
+        const error = await response.json()
+        toast.error(error.error || "Gagal membuat ringkasan AI")
+      }
+    } catch (error) {
+      console.error("Error generating AI summary:", error)
+      toast.error("Terjadi kesalahan saat membuat ringkasan AI")
+    } finally {
+      setIsGeneratingSummary(false)
+    }
+  }
 
   return (
     <div className="container mx-auto space-y-6">
@@ -229,122 +290,241 @@ export default function SkpBulananPage() {
           </p>
         </div>
         
-        <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
-          <DialogTrigger asChild>
-            <Button onClick={() => setIsDialogOpen(true)}>
-              <Plus className="h-4 w-4 mr-2" />
-              Tambah SKP
-            </Button>
-          </DialogTrigger>
-          <DialogContent className="max-w-2xl">
-            <DialogHeader>
-              <DialogTitle>
-                {editingEntry ? "Edit Sasaran Kinerja Pegawai" : "Tambah Sasaran Kinerja Pegawai"}
-              </DialogTitle>
-              <DialogDescription>
-                {editingEntry ? "Perbarui data Sasaran Kinerja Pegawai" : "Tambahkan data Sasaran Kinerja Pegawai baru"}
-              </DialogDescription>
-            </DialogHeader>
-            
-            <form onSubmit={handleSubmit} className="space-y-4">
-              <div className="grid grid-cols-2 gap-4">
-                <div className="space-y-2">
-                  <Label htmlFor="month">Bulan</Label>
-                  <Select
-                    value={formData.month.toString()}
-                    onValueChange={(value) => setFormData({ ...formData, month: parseInt(value) })}
-                  >
-                    <SelectTrigger>
-                      <SelectValue placeholder="Pilih bulan" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {MONTHS.map((month) => (
-                        <SelectItem key={month.value} value={month.value.toString()}>
-                          {month.label}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
+        <div className="flex items-center space-x-2">
+          <Button 
+            variant="outline" 
+            onClick={generateAiSummary}
+            disabled={isGeneratingSummary || entries.length === 0}
+          >
+            {isGeneratingSummary ? (
+              <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+            ) : (
+              <Brain className="h-4 w-4 mr-2" />
+            )}
+            {isGeneratingSummary ? "Membuat Ringkasan..." : "Ringkasan AI"}
+          </Button>
+          
+          <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
+            <DialogTrigger asChild>
+              <Button onClick={() => setIsDialogOpen(true)}>
+                <Plus className="h-4 w-4 mr-2" />
+                Tambah SKP
+              </Button>
+            </DialogTrigger>
+            <DialogContent className="max-w-2xl">
+              <DialogHeader>
+                <DialogTitle>
+                  {editingEntry ? "Edit Sasaran Kinerja Pegawai" : "Tambah Sasaran Kinerja Pegawai"}
+                </DialogTitle>
+                <DialogDescription>
+                  {editingEntry ? "Perbarui data Sasaran Kinerja Pegawai" : "Tambahkan data Sasaran Kinerja Pegawai baru"}
+                </DialogDescription>
+              </DialogHeader>
+              
+              <form onSubmit={handleSubmit} className="space-y-4">
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="space-y-2">
+                    <Label htmlFor="month">Bulan</Label>
+                    <Select
+                      value={formData.month.toString()}
+                      onValueChange={(value) => setFormData({ ...formData, month: parseInt(value) })}
+                    >
+                      <SelectTrigger>
+                        <SelectValue placeholder="Pilih bulan" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {MONTHS.map((month) => (
+                          <SelectItem key={month.value} value={month.value.toString()}>
+                            {month.label}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  
+                  <div className="space-y-2">
+                    <Label htmlFor="year">Tahun</Label>
+                    <Select
+                      value={formData.year.toString()}
+                      onValueChange={(value) => setFormData({ ...formData, year: parseInt(value) })}
+                    >
+                      <SelectTrigger>
+                        <SelectValue placeholder="Pilih tahun" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {years.map((year) => (
+                          <SelectItem key={year} value={year.toString()}>
+                            {year}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
                 </div>
-                
+
                 <div className="space-y-2">
-                  <Label htmlFor="year">Tahun</Label>
-                  <Select
-                    value={formData.year.toString()}
-                    onValueChange={(value) => setFormData({ ...formData, year: parseInt(value) })}
-                  >
-                    <SelectTrigger>
-                      <SelectValue placeholder="Pilih tahun" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {years.map((year) => (
-                        <SelectItem key={year} value={year.toString()}>
-                          {year}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
+                  <Label htmlFor="indicator">Indikator</Label>
+                  <Input
+                    id="indicator"
+                    value={formData.indicator}
+                    onChange={(e) => setFormData({ ...formData, indicator: e.target.value })}
+                    placeholder="Masukkan indikator kinerja"
+                    required
+                  />
                 </div>
-              </div>
 
-              <div className="space-y-2">
-                <Label htmlFor="indicator">Indikator</Label>
-                <Input
-                  id="indicator"
-                  value={formData.indicator}
-                  onChange={(e) => setFormData({ ...formData, indicator: e.target.value })}
-                  placeholder="Masukkan indikator kinerja"
-                  required
-                />
-              </div>
+                <div className="space-y-2">
+                  <Label htmlFor="actionPlan">Rencana Aksi</Label>
+                  <Textarea
+                    id="actionPlan"
+                    value={formData.actionPlan}
+                    onChange={(e) => setFormData({ ...formData, actionPlan: e.target.value })}
+                    placeholder="Masukkan rencana aksi"
+                    rows={3}
+                    required
+                  />
+                </div>
 
-              <div className="space-y-2">
-                <Label htmlFor="actionPlan">Rencana Aksi</Label>
-                <Textarea
-                  id="actionPlan"
-                  value={formData.actionPlan}
-                  onChange={(e) => setFormData({ ...formData, actionPlan: e.target.value })}
-                  placeholder="Masukkan rencana aksi"
-                  rows={3}
-                  required
-                />
-              </div>
+                <div className="space-y-2">
+                  <Label htmlFor="targetRealization">Realisasi Target</Label>
+                  <Textarea
+                    id="targetRealization"
+                    value={formData.targetRealization}
+                    onChange={(e) => setFormData({ ...formData, targetRealization: e.target.value })}
+                    placeholder="Masukkan realisasi target"
+                    rows={3}
+                    required
+                  />
+                </div>
 
-              <div className="space-y-2">
-                <Label htmlFor="targetRealization">Realisasi Target</Label>
-                <Textarea
-                  id="targetRealization"
-                  value={formData.targetRealization}
-                  onChange={(e) => setFormData({ ...formData, targetRealization: e.target.value })}
-                  placeholder="Masukkan realisasi target"
-                  rows={3}
-                  required
-                />
-              </div>
+                <div className="space-y-2">
+                  <Label htmlFor="supportingData">Data Dukung</Label>
+                  <Textarea
+                    id="supportingData"
+                    value={formData.supportingData}
+                    onChange={(e) => setFormData({ ...formData, supportingData: e.target.value })}
+                    placeholder="Masukkan data dukung (opsional)"
+                    rows={2}
+                  />
+                </div>
 
-              <div className="space-y-2">
-                <Label htmlFor="supportingData">Data Dukung</Label>
-                <Textarea
-                  id="supportingData"
-                  value={formData.supportingData}
-                  onChange={(e) => setFormData({ ...formData, supportingData: e.target.value })}
-                  placeholder="Masukkan data dukung (opsional)"
-                  rows={2}
-                />
-              </div>
-
-              <div className="flex justify-end space-x-2">
-                <Button type="button" variant="outline" onClick={handleDialogClose}>
-                  Batal
-                </Button>
-                <Button type="submit">
-                  {editingEntry ? "Perbarui" : "Simpan"}
-                </Button>
-              </div>
-            </form>
-          </DialogContent>
-        </Dialog>
+                <div className="flex justify-end space-x-2">
+                  <Button type="button" variant="outline" onClick={handleDialogClose}>
+                    Batal
+                  </Button>
+                  <Button type="submit">
+                    {editingEntry ? "Perbarui" : "Simpan"}
+                  </Button>
+                </div>
+              </form>
+            </DialogContent>
+          </Dialog>
+        </div>
       </div>
+
+      {/* AI Summary Card */}
+      {showAiSummary && aiSummary && (
+        <Card className="border-blue-200 bg-blue-50/50">
+          <CardHeader>
+            <div className="flex items-center justify-between">
+              <div className="flex items-center space-x-2">
+                <Brain className="h-5 w-5 text-blue-600" />
+                <CardTitle className="text-blue-900">Ringkasan AI - Kinerja SKP</CardTitle>
+              </div>
+              <Button 
+                variant="ghost" 
+                size="sm" 
+                onClick={() => setShowAiSummary(false)}
+              >
+                ×
+              </Button>
+            </div>
+            <CardDescription className="text-blue-700">
+              {aiSummary.period} • {aiSummary.total_entries} entri SKP • 
+              Skor Kinerja: {aiSummary.summary.performance_score}/100
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-6">
+            {/* Executive Summary */}
+            <div>
+              <h4 className="font-semibold text-blue-900 mb-2">Ringkasan Eksekutif</h4>
+              <p className="text-sm text-blue-800 leading-relaxed">
+                {aiSummary.summary.summary}
+              </p>
+            </div>
+
+            <div className="grid md:grid-cols-3 gap-4">
+              {/* Achievements */}
+              <div className="space-y-2">
+                <h4 className="font-semibold text-green-700 flex items-center">
+                  <span className="w-2 h-2 bg-green-500 rounded-full mr-2"></span>
+                  Pencapaian
+                </h4>
+                <ul className="space-y-1">
+                  {aiSummary.summary.analysis.achievements.map((achievement, index) => (
+                    <li key={index} className="text-sm text-green-700 pl-4 relative">
+                      <span className="absolute left-0 top-2 w-1 h-1 bg-green-400 rounded-full"></span>
+                      {achievement}
+                    </li>
+                  ))}
+                </ul>
+              </div>
+
+              {/* Challenges */}
+              <div className="space-y-2">
+                <h4 className="font-semibold text-orange-700 flex items-center">
+                  <span className="w-2 h-2 bg-orange-500 rounded-full mr-2"></span>
+                  Tantangan
+                </h4>
+                <ul className="space-y-1">
+                  {aiSummary.summary.analysis.challenges.map((challenge, index) => (
+                    <li key={index} className="text-sm text-orange-700 pl-4 relative">
+                      <span className="absolute left-0 top-2 w-1 h-1 bg-orange-400 rounded-full"></span>
+                      {challenge}
+                    </li>
+                  ))}
+                </ul>
+              </div>
+
+              {/* Recommendations */}
+              <div className="space-y-2">
+                <h4 className="font-semibold text-purple-700 flex items-center">
+                  <span className="w-2 h-2 bg-purple-500 rounded-full mr-2"></span>
+                  Rekomendasi
+                </h4>
+                <ul className="space-y-1">
+                  {aiSummary.summary.analysis.recommendations.map((recommendation, index) => (
+                    <li key={index} className="text-sm text-purple-700 pl-4 relative">
+                      <span className="absolute left-0 top-2 w-1 h-1 bg-purple-400 rounded-full"></span>
+                      {recommendation}
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            </div>
+
+            {/* Performance Score */}
+            <div className="bg-white rounded-lg p-4 border border-blue-200">
+              <div className="flex items-center justify-between mb-2">
+                <span className="text-sm font-medium text-blue-900">Skor Kinerja</span>
+                <span className="text-lg font-bold text-blue-900">
+                  {aiSummary.summary.performance_score}/100
+                </span>
+              </div>
+              <div className="w-full bg-blue-100 rounded-full h-2">
+                <div 
+                  className="bg-blue-600 h-2 rounded-full transition-all duration-300" 
+                  style={{ width: `${aiSummary.summary.performance_score}%` }}
+                ></div>
+              </div>
+            </div>
+
+            <div className="text-xs text-blue-600 text-right">
+              Dibuat pada: {new Date(aiSummary.generated_at).toLocaleString('id-ID')}
+            </div>
+          </CardContent>
+        </Card>
+      )}
 
       {/* Data Table */}
       <Card>
@@ -397,7 +577,6 @@ export default function SkpBulananPage() {
                     <TableHead>Realisasi Target</TableHead>
                     <TableHead>Data Dukung</TableHead>
                     <TableHead>Feedback</TableHead>
-
                     <TableHead className="w-32">Aksi</TableHead>
                   </TableRow>
                 </TableHeader>
@@ -427,66 +606,65 @@ export default function SkpBulananPage() {
                           <TableCell>
                             {MONTHS.find(m => m.value === entry.month)?.label}
                           </TableCell>
-                      <TableCell className="max-w-48">
-                        <div className="truncate" title={entry.indicator}>
-                          {entry.indicator}
-                        </div>
-                      </TableCell>
-                      <TableCell className="max-w-48">
-                        <div className="truncate" title={entry.action_plan}>
-                          {entry.action_plan}
-                        </div>
-                      </TableCell>
-                      <TableCell className="max-w-48">
-                        <div className="truncate" title={entry.target_realization}>
-                          {entry.target_realization}
-                        </div>
-                      </TableCell>
-                      <TableCell className="max-w-32">
-                        <div className="flex items-center space-x-2">
-                          {entry.supporting_data && (
-                            <div className="truncate text-sm" title={entry.supporting_data}>
-                              {entry.supporting_data}
+                          <TableCell className="max-w-48">
+                            <div className="truncate" title={entry.indicator}>
+                              {entry.indicator}
                             </div>
-                          )}
-                          {entry.files.length > 0 && (
-                            <Badge variant="secondary" className="text-xs">
-                              {entry.files.length} file
-                            </Badge>
-                          )}
-                        </div>
-                      </TableCell>
-                      <TableCell className="max-w-32">
-                        {entry.feedback ? (
-                          <div className="truncate text-sm" title={entry.feedback}>
-                            {entry.feedback}
-                          </div>
-                        ) : (
-                          <span className="text-muted-foreground text-sm">-</span>
-                        )}
-                      </TableCell>
-
-                      <TableCell>
-                        <div className="flex items-center space-x-1">
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            onClick={() => handleEdit(entry)}
-                            title="Edit"
-                          >
-                            <Edit className="h-4 w-4" />
-                          </Button>
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            onClick={() => handleDelete(entry.id)}
-                            title="Hapus"
-                          >
-                            <Trash2 className="h-4 w-4" />
-                          </Button>
-                        </div>
-                      </TableCell>
-                    </TableRow>
+                          </TableCell>
+                          <TableCell className="max-w-48">
+                            <div className="truncate" title={entry.action_plan}>
+                              {entry.action_plan}
+                            </div>
+                          </TableCell>
+                          <TableCell className="max-w-48">
+                            <div className="truncate" title={entry.target_realization}>
+                              {entry.target_realization}
+                            </div>
+                          </TableCell>
+                          <TableCell className="max-w-32">
+                            <div className="flex items-center space-x-2">
+                              {entry.supporting_data && (
+                                <div className="truncate text-sm" title={entry.supporting_data}>
+                                  {entry.supporting_data}
+                                </div>
+                              )}
+                              {entry.files.length > 0 && (
+                                <Badge variant="secondary" className="text-xs">
+                                  {entry.files.length} file
+                                </Badge>
+                              )}
+                            </div>
+                          </TableCell>
+                          <TableCell className="max-w-32">
+                            {entry.feedback ? (
+                              <div className="truncate text-sm" title={entry.feedback}>
+                                {entry.feedback}
+                              </div>
+                            ) : (
+                              <span className="text-muted-foreground text-sm">-</span>
+                            )}
+                          </TableCell>
+                          <TableCell>
+                            <div className="flex items-center space-x-1">
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                onClick={() => handleEdit(entry)}
+                                title="Edit"
+                              >
+                                <Edit className="h-4 w-4" />
+                              </Button>
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                onClick={() => handleDelete(entry.id)}
+                                title="Hapus"
+                              >
+                                <Trash2 className="h-4 w-4" />
+                              </Button>
+                            </div>
+                          </TableCell>
+                        </TableRow>
                       );
                       
                       return acc;

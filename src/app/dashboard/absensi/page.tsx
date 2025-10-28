@@ -7,7 +7,7 @@ import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { Separator } from "@/components/ui/separator"
 import { CameraCapture } from "@/components/ui/camera-capture"
-import { MapPin, Clock, Camera, CheckCircle, XCircle, AlertCircle } from "lucide-react"
+import { MapPin, Clock, Camera, CheckCircle, XCircle, AlertCircle, Brain, Loader2 } from "lucide-react"
 import { toast } from "sonner"
 import { uploadPhotoToSupabase } from "@/lib/supabase"
 
@@ -22,6 +22,30 @@ interface AttendanceRecord {
     longitude: number
     address?: string
   }
+}
+
+interface AttendanceSummaryResponse {
+  executive_summary: string
+  attendance_analysis: {
+    total_days: number
+    present_days: number
+    late_days: number
+    absent_days: number
+    attendance_rate: number
+    punctuality_rate: number
+  }
+  patterns_insights: string[]
+  recommendations: string[]
+  performance_score: number
+}
+
+interface AiSummaryData {
+  user: {
+    name: string
+    nip: string
+  }
+  period: string
+  summary: AttendanceSummaryResponse
 }
 
 export default function PresensiPage() {
@@ -42,6 +66,15 @@ export default function PresensiPage() {
     work_end_time: string
     late_tolerance_minutes: number
   } | null>(null)
+
+  // AI Summary states
+  const [aiSummary, setAiSummary] = useState<AiSummaryData | null>(null)
+  const [isGeneratingSummary, setIsGeneratingSummary] = useState(false)
+  const [showAiSummary, setShowAiSummary] = useState(false)
+  const [selectedMonth, setSelectedMonth] = useState(() => {
+    const now = new Date()
+    return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`
+  })
 
   // Update current time every second
   useEffect(() => {
@@ -265,6 +298,45 @@ export default function PresensiPage() {
     }
   }
 
+  // AI Summary generation function
+  const generateAiSummary = async () => {
+    if (!session?.user) {
+      toast.error("Anda harus login untuk menggunakan fitur ini")
+      return
+    }
+
+    setIsGeneratingSummary(true)
+    try {
+      const [year, month] = selectedMonth.split('-')
+      
+      const response = await fetch('/api/attendance/ai-summary', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          month: month,
+          year: year,
+        }),
+      })
+
+      if (!response.ok) {
+        const errorData = await response.json()
+        throw new Error(errorData.error || 'Gagal menghasilkan ringkasan AI')
+      }
+
+      const data = await response.json()
+      setAiSummary(data.data) // Extract the data property from the response
+      setShowAiSummary(true)
+      toast.success("Ringkasan AI berhasil dihasilkan!")
+    } catch (error) {
+      console.error('Error generating AI summary:', error)
+      toast.error(error instanceof Error ? error.message : "Gagal menghasilkan ringkasan AI")
+    } finally {
+      setIsGeneratingSummary(false)
+    }
+  }
+
   const handlePhotoCapture = async (file: File) => {
     if (!session?.user?.id) {
       toast.error("Session tidak valid")
@@ -407,7 +479,146 @@ export default function PresensiPage() {
           <h1 className="text-3xl font-bold">Presensi</h1>
           <p className="text-muted-foreground">Kelola kehadiran harian Anda</p>
         </div>
+        
+        <div className="flex items-center space-x-2">
+          <label htmlFor="month-select" className="text-sm font-medium">
+            Pilih Periode:
+          </label>
+          <input
+            id="month-select"
+            type="month"
+            value={selectedMonth}
+            onChange={(e) => setSelectedMonth(e.target.value)}
+            className="px-3 py-2 border rounded-md text-sm"
+          />
+          <Button
+            onClick={generateAiSummary}
+            disabled={isGeneratingSummary}
+            className="flex items-center gap-2"
+          >
+            {isGeneratingSummary ? (
+              <>
+                <Loader2 className="h-4 w-4 animate-spin" />
+                Menganalisis...
+              </>
+            ) : (
+              <>
+                <Brain className="h-4 w-4" />
+                Buat Ringkasan AI
+              </>
+            )}
+          </Button>
+        </div>
       </div>
+
+      {/* AI Summary - Only show when generated */}
+      {showAiSummary && aiSummary && (
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <Brain className="h-5 w-5 text-blue-600" />
+              Ringkasan AI Presensi
+            </CardTitle>
+            <CardDescription>
+              Analisis kehadiran menggunakan AI untuk periode yang dipilih
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <div className="space-y-6">
+              {/* Header */}
+              <div className="bg-gradient-to-r from-blue-50 to-indigo-50 p-4 rounded-lg border">
+                <h3 className="font-semibold text-lg text-gray-900">
+                  Ringkasan Presensi - {aiSummary.user.name}
+                </h3>
+                <p className="text-sm text-gray-600">
+                  NIP: {aiSummary.user.nip} • Periode: {aiSummary.period}
+                </p>
+                <div className="mt-2">
+                  <div className="flex items-center gap-2">
+                    <span className="text-sm font-medium">Skor Kinerja:</span>
+                    <Badge 
+                      variant={aiSummary.summary.performance_score >= 80 ? "default" : 
+                              aiSummary.summary.performance_score >= 60 ? "secondary" : "destructive"}
+                      className="text-sm"
+                    >
+                      {aiSummary.summary.performance_score}/100
+                    </Badge>
+                  </div>
+                </div>
+              </div>
+
+              {/* Executive Summary */}
+              <div className="space-y-2">
+                <h4 className="font-semibold text-gray-900">Ringkasan Eksekutif</h4>
+                <p className="text-sm text-gray-700 leading-relaxed">
+                  {aiSummary.summary.executive_summary}
+                </p>
+              </div>
+
+              {/* Attendance Analysis */}
+              <div className="space-y-3">
+                <h4 className="font-semibold text-gray-900">Analisis Kehadiran</h4>
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                  <div className="bg-green-50 p-3 rounded-lg border border-green-200">
+                    <div className="text-2xl font-bold text-green-700">
+                      {aiSummary.summary.attendance_analysis.present_days}
+                    </div>
+                    <div className="text-xs text-green-600">Hari Hadir</div>
+                  </div>
+                  <div className="bg-yellow-50 p-3 rounded-lg border border-yellow-200">
+                    <div className="text-2xl font-bold text-yellow-700">
+                      {aiSummary.summary.attendance_analysis.late_days}
+                    </div>
+                    <div className="text-xs text-yellow-600">Hari Terlambat</div>
+                  </div>
+                  <div className="bg-red-50 p-3 rounded-lg border border-red-200">
+                    <div className="text-2xl font-bold text-red-700">
+                      {aiSummary.summary.attendance_analysis.absent_days}
+                    </div>
+                    <div className="text-xs text-red-600">Hari Tidak Hadir</div>
+                  </div>
+                  <div className="bg-blue-50 p-3 rounded-lg border border-blue-200">
+                    <div className="text-2xl font-bold text-blue-700">
+                      {aiSummary.summary.attendance_analysis.attendance_rate.toFixed(1)}%
+                    </div>
+                    <div className="text-xs text-blue-600">Tingkat Kehadiran</div>
+                  </div>
+                </div>
+              </div>
+
+              {/* Patterns & Insights */}
+              {aiSummary.summary.patterns_insights.length > 0 && (
+                <div className="space-y-2">
+                  <h4 className="font-semibold text-gray-900">Pola & Wawasan</h4>
+                  <ul className="space-y-1">
+                    {aiSummary.summary.patterns_insights.map((insight, index) => (
+                      <li key={index} className="text-sm text-gray-700 flex items-start gap-2">
+                        <span className="text-blue-500 mt-1">•</span>
+                        <span>{insight}</span>
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              )}
+
+              {/* Recommendations */}
+              {aiSummary.summary.recommendations.length > 0 && (
+                <div className="space-y-2">
+                  <h4 className="font-semibold text-gray-900">Rekomendasi</h4>
+                  <ul className="space-y-1">
+                    {aiSummary.summary.recommendations.map((recommendation, index) => (
+                      <li key={index} className="text-sm text-gray-700 flex items-start gap-2">
+                        <span className="text-green-500 mt-1">✓</span>
+                        <span>{recommendation}</span>
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              )}
+            </div>
+          </CardContent>
+        </Card>
+      )}
 
       {/* Combined Status Card */}
       <Card>
