@@ -1,0 +1,92 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>PRIMA ASN - Redirecting...</title>
+    <meta http-equiv="refresh" content="0; url=https://prima-asn-dun.vercel.app/">
+    <link rel="canonical" href="https://prima-asn-dun.vercel.app/">
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            margin: 0;
+            padding: 0;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+            color: white;
+        }
+        .container {
+            text-align: center;
+            padding: 2rem;
+            background: rgba(255, 255, 255, 0.1);
+            border-radius: 15px;
+            backdrop-filter: blur(10px);
+            box-shadow: 0 8px 32px 0 rgba(31, 38, 135, 0.37);
+            border: 1px solid rgba(255, 255, 255, 0.18);
+        }
+        .logo {
+            font-size: 2.5rem;
+            font-weight: bold;
+            margin-bottom: 1rem;
+            text-shadow: 2px 2px 4px rgba(0,0,0,0.3);
+        }
+        .subtitle {
+            font-size: 1.2rem;
+            margin-bottom: 2rem;
+            opacity: 0.9;
+        }
+        .spinner {
+            border: 3px solid rgba(255, 255, 255, 0.3);
+            border-radius: 50%;
+            border-top: 3px solid white;
+            width: 40px;
+            height: 40px;
+            animation: spin 1s linear infinite;
+            margin: 0 auto 1rem;
+        }
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+        .redirect-text {
+            font-size: 1rem;
+            opacity: 0.8;
+        }
+        .manual-link {
+            display: inline-block;
+            margin-top: 1rem;
+            padding: 0.5rem 1rem;
+            background: rgba(255, 255, 255, 0.2);
+            border: 1px solid rgba(255, 255, 255, 0.3);
+            border-radius: 5px;
+            color: white;
+            text-decoration: none;
+            transition: all 0.3s ease;
+        }
+        .manual-link:hover {
+            background: rgba(255, 255, 255, 0.3);
+            transform: translateY(-2px);
+        }
+    </style>
+    <script>
+        // Fallback redirect in case meta refresh doesn't work
+        setTimeout(function() {
+            window.location.href = 'https://prima-asn-dun.vercel.app/';
+        }, 100);
+    </script>
+</head>
+<body>
+    <div class="container">
+        <div class="logo">PRIMA ASN</div>
+        <div class="subtitle">Performance Review and Intelligent Merit Assessment</div>
+        <div class="spinner"></div>
+        <div class="redirect-text">Mengalihkan ke aplikasi utama...</div>
+        <a href="https://prima-asn-dun.vercel.app/" class="manual-link">
+            Klik di sini jika tidak dialihkan otomatis
+        </a>
+    </div>
+</body>
+</html>
