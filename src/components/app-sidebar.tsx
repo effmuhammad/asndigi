@@ -36,7 +36,7 @@ const items = [
     icon: Calendar,
   },
   {
-    title: "Laporan Akhir Kinerja",
+    title: "Laporan Kinerja",
     url: "/dashboard/laporan-kinerja",
     icon: ClipboardCheck,
   },
