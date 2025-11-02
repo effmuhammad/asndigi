@@ -20,21 +20,6 @@ const createSupervisorEvaluationSchema = z.object({
   strengths: z.string().optional(),
 })
 
-// Schema for updating supervisor evaluation
-const updateSupervisorEvaluationSchema = z.object({
-  work_quality_score: z.number().min(1).max(5).optional(),
-  work_quantity_score: z.number().min(1).max(5).optional(),
-  punctuality_score: z.number().min(1).max(5).optional(),
-  cooperation_score: z.number().min(1).max(5).optional(),
-  initiative_score: z.number().min(1).max(5).optional(),
-  leadership_score: z.number().min(1).max(5).optional(),
-  overall_rating: z.number().min(1).max(5).optional(),
-  supervisor_comments: z.string().optional(),
-  recommendations: z.string().optional(),
-  development_areas: z.string().optional(),
-  strengths: z.string().optional(),
-})
-
 // GET - Fetch supervisor evaluations
 export async function GET(request: NextRequest) {
   try {

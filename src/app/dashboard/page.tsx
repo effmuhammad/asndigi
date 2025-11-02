@@ -35,7 +35,7 @@ export default function DashboardPage() {
       icon: Calendar,
     },
     {
-      title: "Laporan Kinerja",
+      title: "Laporan Akhir Kinerja",
       url: "/dashboard/laporan-kinerja",
       icon: ClipboardCheck,
     },

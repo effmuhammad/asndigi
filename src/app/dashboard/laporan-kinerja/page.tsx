@@ -263,8 +263,8 @@ export default function LaporanKinerjaPage() {
     <div className="w-full max-w-none space-y-6">
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-3xl font-bold">Laporan Kinerja</h1>
-          <p className="text-muted-foreground">Kelola laporan kinerja ASN</p>
+          <h1 className="text-3xl font-bold">Laporan Akhir Kinerja</h1>
+          <p className="text-muted-foreground">Kelola laporan akhir kinerja ASN</p>
         </div>
         <div className="flex items-center gap-4">
           <Select value={selectedYear.toString()} onValueChange={(value) => setSelectedYear(parseInt(value))}>
@@ -384,73 +384,14 @@ export default function LaporanKinerjaPage() {
         </div>
       </div>
 
-      {/* Summary Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Total Laporan</CardTitle>
-            <FileText className="h-4 w-4 text-muted-foreground" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">{reports.length}</div>
-            <p className="text-xs text-muted-foreground">
-              Tahun {selectedYear}
-            </p>
-          </CardContent>
-        </Card>
 
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Disetujui</CardTitle>
-            <CheckCircle className="h-4 w-4 text-green-600" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold text-green-600">
-              {reports.filter(r => r.status === "APPROVED").length}
-            </div>
-            <p className="text-xs text-muted-foreground">
-              Laporan disetujui
-            </p>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Menunggu</CardTitle>
-            <Clock className="h-4 w-4 text-orange-600" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold text-orange-600">
-              {reports.filter(r => r.status === "SUBMITTED").length}
-            </div>
-            <p className="text-xs text-muted-foreground">
-              Menunggu approval
-            </p>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Draft</CardTitle>
-            <FileText className="h-4 w-4 text-muted-foreground" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">
-              {reports.filter(r => r.status === "DRAFT").length}
-            </div>
-            <p className="text-xs text-muted-foreground">
-              Belum disubmit
-            </p>
-          </CardContent>
-        </Card>
-      </div>
 
       {/* Reports Table */}
       <Card>
         <CardHeader>
-          <CardTitle>Daftar Laporan Kinerja</CardTitle>
+          <CardTitle>Daftar Laporan Akhir Kinerja</CardTitle>
           <CardDescription>
-            Kelola dan pantau status laporan kinerja tahunan Anda
+            Kelola dan pantau status laporan akhir kinerja Anda
           </CardDescription>
         </CardHeader>
         <CardContent>

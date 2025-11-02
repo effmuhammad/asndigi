@@ -1,6 +1,37 @@
 import { PrismaClient } from '@prisma/client'
 import bcrypt from 'bcryptjs'
 
+// Function to calculate random submission date within 1-6 working days of the following month
+function calculateRandomSubmissionDate(taskYear: number, taskMonth: number): Date {
+  // Get the last day of the task month
+  const lastDayOfTaskMonth = new Date(taskYear, taskMonth, 0)
+  
+  // Start from the first day of the following month
+  let currentDate = new Date(lastDayOfTaskMonth)
+  currentDate.setDate(currentDate.getDate() + 1)
+  
+  let workingDaysAdded = 0
+  const workingDays: Date[] = []
+  
+  // Collect first 6 working days of the following month
+  while (workingDaysAdded < 6) {
+    const dayOfWeek = currentDate.getDay() // 0 = Sunday, 6 = Saturday
+    
+    // If it's not a weekend, count it as a working day
+    if (dayOfWeek !== 0 && dayOfWeek !== 6) {
+      workingDays.push(new Date(currentDate))
+      workingDaysAdded++
+    }
+    
+    // Always move to next day to continue searching
+    currentDate.setDate(currentDate.getDate() + 1)
+  }
+  
+  // Return a random working day from the first 6 working days
+  const randomIndex = Math.floor(Math.random() * workingDays.length)
+  return workingDays[randomIndex]
+}
+
 const prisma = new PrismaClient({
   datasources: {
     db: {
@@ -511,57 +542,58 @@ async function main() {
   // 8. Create SKP Monthly Entries and Files
   console.log('📋 Creating SKP monthly entries...')
   
-  // Define SKP indicators for each user
-  const skpIndicators = {
-    [staff1.id]: [
-      {
-        indicator: 'Mengembangkan sistem informasi kepegawaian',
-        action_plan: 'Analisis kebutuhan, desain sistem, dan implementasi',
-        target_realization: 'Sistem selesai 100% sesuai timeline',
-        supporting_data: 'Dokumentasi analisis dan hasil testing'
-      },
-      {
-        indicator: 'Memberikan pelatihan IT kepada pegawai',
-        action_plan: 'Menyiapkan materi dan melaksanakan pelatihan',
-        target_realization: '20 pegawai terlatih per bulan',
-        supporting_data: 'Daftar hadir dan evaluasi pelatihan'
-      }
-    ],
-    [staff2.id]: [
-      {
-        indicator: 'Menyusun laporan keuangan bulanan',
-        action_plan: 'Mengumpulkan data dan menyusun laporan',
-        target_realization: 'Laporan selesai tepat waktu',
-        supporting_data: 'Laporan keuangan dan supporting documents'
-      },
-      {
-        indicator: 'Melakukan analisis anggaran departemen',
-        action_plan: 'Review anggaran dan memberikan rekomendasi',
-        target_realization: 'Analisis selesai setiap bulan',
-        supporting_data: 'Laporan analisis dan rekomendasi'
-      }
-    ],
-    [staff3.id]: [
-      {
-        indicator: 'Melakukan inspeksi teknis pelabuhan',
-        action_plan: 'Inspeksi rutin fasilitas dan peralatan pelabuhan',
-        target_realization: 'Inspeksi 10 lokasi per bulan',
-        supporting_data: 'Laporan inspeksi dan dokumentasi foto'
-      },
-      {
-        indicator: 'Pemeliharaan peralatan teknis pelabuhan',
-        action_plan: 'Maintenance preventif dan korektif peralatan',
-        target_realization: 'Semua peralatan berfungsi optimal',
-        supporting_data: 'Log maintenance dan laporan kondisi'
-      }
-    ]
-  }
+  // Define SKP indicators based on CSV data - these are the main indicators that repeat monthly
+  const csvSkpIndicators = [
+    {
+      indicator: 'TERLAKSANANYA PENGOPERASIAN PERAWATAN DAN PERBAIKAN FASILITAS KEAMANAN PENERBANGAN DAN PELAYANAN DARURAT',
+      action_plan: 'Terlaksananya kegiatan Menyiapkan dan mengoperasikan peralatan elektronikan penerbangan kategori A',
+      target_realization: 'Dokumen',
+      supporting_data: 'https://bit.ly/lapbulTU2025'
+    },
+    {
+      indicator: 'TERLAKSANANYA PENGOPERASIAN PERAWATAN DAN PERBAIKAN FASILITAS KEAMANAN PENERBANGAN DAN PELAYANAN DARURAT',
+      action_plan: 'Terlaksananya kegiatan pemeliharaan tingkat I peralatan elektronika penerbangan kategori A',
+      target_realization: 'Dokumen',
+      supporting_data: 'https://bit.ly/lapbulTU2025'
+    },
+    {
+      indicator: 'TERLAKSANANYA PENGOPERASIAN PERAWATAN DAN PERBAIKAN FASILITAS KEAMANAN PENERBANGAN DAN PELAYANAN DARURAT',
+      action_plan: 'Terlaksananya kegiatan pemeliharaan tingkat I peralatan elektronika penerbangan kategori C',
+      target_realization: 'Dokumen',
+      supporting_data: 'https://bit.ly/lapbulTU2025'
+    },
+    {
+      indicator: 'TERLAKSANANYA PENGOPERASIAN PERAWATAN DAN PERBAIKAN FASILITAS KEAMANAN PENERBANGAN DAN PELAYANAN DARURAT',
+      action_plan: 'Terlaksananya kegiatan pemeliharaan tingkat II peralatan elektronika penerbangan kategori A',
+      target_realization: 'Dokumen',
+      supporting_data: 'https://bit.ly/lapbulTU2025'
+    },
+    {
+      indicator: 'TERLAKSANANYA PENGOPERASIAN PERAWATAN DAN PERBAIKAN FASILITAS KEAMANAN PENERBANGAN DAN PELAYANAN DARURAT',
+      action_plan: 'Terlaksananya kegiatan pemeliharaan tingkat II peralatan elektronika penerbangan kategori C',
+      target_realization: 'Dokumen',
+      supporting_data: 'https://bit.ly/lapbulTU2025'
+    },
+    {
+      indicator: 'TERLAKSANANYA PENGOPERASIAN PERAWATAN DAN PERBAIKAN FASILITAS KEAMANAN PENERBANGAN DAN PELAYANAN DARURAT',
+      action_plan: 'Terlaksananya kegiatan pemeliharaan tingkat I peralatan elektronika bandara kategori B',
+      target_realization: 'Dokumen',
+      supporting_data: 'https://bit.ly/lapbulTU2025'
+    },
+    {
+      indicator: 'TERLAKSANANYA EVALUASI DAN PENYUSUNAN LAPORAN KEGIATAN SEKSI TOKPD TERMASUK KEGIATAN KOMITE OPERASIONAL BANDAR UDARA (KEAMANAN DAN KESELAMATAN)',
+      action_plan: 'Terlaksananya tugas jaga',
+      target_realization: 'Dokumen',
+      supporting_data: 'https://bit.ly/lapbulTU2025'
+    }
+  ]
 
   // Create SKP entries for all users for January-December 2025
   const skpEntries = []
   const skpUsers = [staff1, staff2, staff3]
   const months = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12]
-  const statuses: ('APPROVED' | 'SUBMITTED' | 'DRAFT')[] = ['APPROVED', 'SUBMITTED', 'DRAFT']
+  const monthNames = ['Januari', 'Februari', 'Maret', 'April', 'Mei', 'Juni', 'Juli', 'Agustus', 'September', 'Oktober', 'November', 'Desember']
+  
   const feedbacks = [
     'Pekerjaan dilaksanakan dengan baik',
     'Target tercapai sesuai rencana',
@@ -574,12 +606,37 @@ async function main() {
     const supervisorId = user.id === staff3.id ? supervisor2.id : supervisor1.id
     
     for (const month of months) {
-      const indicators = skpIndicators[user.id]
+      const monthName = monthNames[month - 1]
       
-      for (let seqNo = 1; seqNo <= indicators.length; seqNo++) {
-        const indicator = indicators[seqNo - 1]
-        const randomStatus = statuses[Math.floor(Math.random() * statuses.length)]
-        const randomFeedback = feedbacks[Math.floor(Math.random() * feedbacks.length)]
+      for (let seqNo = 1; seqNo <= csvSkpIndicators.length; seqNo++) {
+        const indicator = csvSkpIndicators[seqNo - 1]
+        
+        // Determine status based on month:
+        // Jan-Sep: APPROVED (submitted with realization and supporting data)
+        // Oct-Dec: DRAFT (pending submission, need to meet deadline)
+        let status: 'APPROVED' | 'SUBMITTED' | 'DRAFT'
+        let feedback: string | null = null
+        let supportingData: string | null = null
+        let supportingDataSubmissionDate: Date | null = null
+        let targetRealization: string
+        
+        if (month <= 9) {
+          // Jan-Sep: Already submitted and approved
+          status = 'APPROVED'
+          feedback = feedbacks[Math.floor(Math.random() * feedbacks.length)]
+          supportingData = indicator.supporting_data
+          targetRealization = `${indicator.target_realization} ${monthName}`
+          
+          // Set submission date for approved entries (1-6 working days in the following month)
+          supportingDataSubmissionDate = calculateRandomSubmissionDate(2025, month)
+        } else {
+          // Oct-Dec: Still in draft, pending submission
+          status = 'DRAFT'
+          feedback = null
+          supportingData = null
+          supportingDataSubmissionDate = null
+          targetRealization = `${indicator.target_realization} ${monthName}`
+        }
         
         const entry = await prisma.skpMonthlyEntry.create({
           data: {
@@ -589,10 +646,11 @@ async function main() {
             sequence_no: seqNo,
             indicator: indicator.indicator,
             action_plan: indicator.action_plan,
-            target_realization: indicator.target_realization,
-            supporting_data: indicator.supporting_data,
-            feedback: randomFeedback,
-            status: randomStatus,
+            target_realization: targetRealization,
+            supporting_data: supportingData,
+            supporting_data_submission_date: supportingDataSubmissionDate,
+            feedback: feedback,
+            status: status,
             created_by: user.id,
             supervisor_id: supervisorId
           }
@@ -626,6 +684,102 @@ async function main() {
   await prisma.skpMonthlyFile.createMany({
     data: sampleFiles
   })
+
+  // Create SKP Monthly Behavior Entries
+  console.log('🎭 Creating SKP monthly behavior entries...')
+  
+  // Define behavior data for each user
+  const behaviorData = {
+    [staff1.id]: [
+      {
+        behavior: 'Menunjukkan integritas dalam bekerja',
+        feedback: 'Selalu jujur dan dapat dipercaya dalam menjalankan tugas',
+        behavior_category: 'Integritas',
+        assessment_score: 4,
+        improvement_notes: 'Pertahankan sikap yang baik'
+      },
+      {
+        behavior: 'Bekerja sama dengan tim secara efektif',
+        feedback: 'Aktif berkolaborasi dan membantu rekan kerja',
+        behavior_category: 'Kerjasama',
+        assessment_score: 5,
+        improvement_notes: 'Sangat baik dalam kerjasama tim'
+      }
+    ],
+    [staff2.id]: [
+      {
+        behavior: 'Disiplin dalam menjalankan tugas',
+        feedback: 'Selalu tepat waktu dan mengikuti prosedur yang berlaku',
+        behavior_category: 'Disiplin',
+        assessment_score: 4,
+        improvement_notes: 'Tingkatkan konsistensi kehadiran'
+      },
+      {
+        behavior: 'Menunjukkan komitmen terhadap pelayanan publik',
+        feedback: 'Berorientasi pada kepuasan stakeholder',
+        behavior_category: 'Pelayanan Publik',
+        assessment_score: 4,
+        improvement_notes: 'Terus tingkatkan kualitas pelayanan'
+      }
+    ],
+    [staff3.id]: [
+      {
+        behavior: 'Bertanggung jawab dalam menjalankan tugas',
+        feedback: 'Menyelesaikan tugas dengan penuh tanggung jawab',
+        behavior_category: 'Tanggung Jawab',
+        assessment_score: 4,
+        improvement_notes: 'Pertahankan sikap bertanggung jawab'
+      },
+      {
+        behavior: 'Menunjukkan adaptabilitas terhadap perubahan',
+        feedback: 'Mampu menyesuaikan diri dengan perubahan prosedur',
+        behavior_category: 'Adaptabilitas',
+        assessment_score: 3,
+        improvement_notes: 'Tingkatkan kemampuan adaptasi'
+      }
+    ]
+  }
+
+  // Create behavior entries for all users for January-December 2025
+  const behaviorEntries = []
+  
+  for (const user of skpUsers) {
+    const supervisorId = user.id === staff3.id ? supervisor2.id : supervisor1.id
+    
+    for (const month of months) {
+      const behaviors = behaviorData[user.id]
+      
+      for (let seqNo = 1; seqNo <= behaviors.length; seqNo++) {
+        const behavior = behaviors[seqNo - 1]
+        
+        // Apply same logic as SKP entries: Jan-Sep approved, Oct-Dec draft
+        let status: 'APPROVED' | 'SUBMITTED' | 'DRAFT'
+        if (month <= 9) {
+          status = 'APPROVED'
+        } else {
+          status = 'DRAFT'
+        }
+        
+        const entry = await prisma.skpMonthlyBehavior.create({
+          data: {
+            user_id: user.id,
+            month: month,
+            year: 2025,
+            sequence_no: seqNo,
+            behavior: behavior.behavior,
+            feedback: behavior.feedback,
+            assessment_score: behavior.assessment_score,
+            improvement_notes: behavior.improvement_notes,
+            status: status,
+            created_by: user.id,
+            supervisor_id: supervisorId
+          }
+        })
+        
+        behaviorEntries.push(entry)
+      }
+    }
+  }
 
   // 9. Create Annual Performance Reports
   console.log('📊 Creating annual performance reports...')
@@ -988,8 +1142,9 @@ async function main() {
 - Attendance: ${attendanceData.length} records (30 days for 6 users)
 - Performance Reports: 2 reports
 - Approvals: 2 approval records
-- SKP Monthly Entries: 3 entries
-- SKP Monthly Files: 3 files
+- SKP Monthly Entries: ${skpEntries.length} entries
+- SKP Monthly Files: ${sampleFiles.length} files
+- SKP Monthly Behavior Entries: ${behaviorEntries.length} behavior records
 - Annual Performance Reports: ${annualReports.length} reports (2023-2024)
 - Supervisor Evaluations: ${supervisorEvaluations.length} evaluations
 - Digital Signatures: ${digitalSignatures.length} signatures

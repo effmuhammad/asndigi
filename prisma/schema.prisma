@@ -132,6 +132,9 @@ model User {
   skp_monthly_entries SkpMonthlyEntry[]
   created_skp_monthly SkpMonthlyEntry[]    @relation("SkpMonthlyCreator")
   supervised_skp_monthly SkpMonthlyEntry[] @relation("SkpMonthlySupervisor")
+  skp_monthly_behaviors SkpMonthlyBehavior[]
+  created_skp_behaviors SkpMonthlyBehavior[] @relation("SkpBehaviorCreator")
+  supervised_skp_behaviors SkpMonthlyBehavior[] @relation("SkpBehaviorSupervisor")
   profile             Profile?
   created_organizational_reports OrganizationalPerformanceReport[] @relation("OrganizationalReportCreator")
   annual_performance_reports AnnualPerformanceReport[]
@@ -224,6 +227,7 @@ model SkpMonthlyEntry {
   action_plan        String
   target_realization String
   supporting_data    String?
+  supporting_data_submission_date DateTime? @db.Date
   feedback           String?
   status             SkpMonthlyStatus  @default(DRAFT)
   created_at         DateTime          @default(now())
@@ -261,6 +265,36 @@ model SkpMonthlyFile {
   @@index([entry_id])
   @@index([uploaded_at])
   @@map("skp_monthly_files")
+}
+
+model SkpMonthlyBehavior {
+  id                 String            @id @default(uuid(7))
+  user_id            String
+  month              Int               // 1-12
+  year               Int
+  sequence_no        Int               @default(1)
+  behavior           String            // Main variable: Perilaku
+  feedback           String?           // Main variable: Feedback
+  behavior_category  String?           // Supporting variable: kategori perilaku
+  assessment_score   Int?              // Supporting variable: skor penilaian (1-5)
+  improvement_notes  String?           // Supporting variable: catatan perbaikan
+  status             SkpMonthlyStatus  @default(DRAFT)
+  created_at         DateTime          @default(now())
+  updated_at         DateTime          @updatedAt
+  created_by         String?
+  supervisor_id      String?
+
+  // Relations
+  user       User                @relation(fields: [user_id], references: [id], onDelete: Cascade)
+  creator    User?               @relation("SkpBehaviorCreator", fields: [created_by], references: [id])
+  supervisor User?               @relation("SkpBehaviorSupervisor", fields: [supervisor_id], references: [id])
+
+  @@unique([user_id, year, month, sequence_no])
+  @@index([user_id])
+  @@index([year, month])
+  @@index([status])
+  @@index([supervisor_id])
+  @@map("skp_monthly_behaviors")
 }
 
 model Profile {

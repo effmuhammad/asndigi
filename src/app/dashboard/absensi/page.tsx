@@ -7,7 +7,7 @@ import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { Separator } from "@/components/ui/separator"
 import { CameraCapture } from "@/components/ui/camera-capture"
-import { MapPin, Clock, Camera, CheckCircle, XCircle, AlertCircle, Brain, Loader2 } from "lucide-react"
+import { MapPin, Clock, CheckCircle, XCircle, AlertCircle, Brain, Loader2 } from "lucide-react"
 import { toast } from "sonner"
 import { uploadPhotoToSupabase } from "@/lib/supabase"
 
@@ -53,7 +53,6 @@ export default function PresensiPage() {
   const [currentTime, setCurrentTime] = useState(new Date())
   const [location, setLocation] = useState<{ lat: number; lng: number } | null>(null)
   const [locationError, setLocationError] = useState<string | null>(null)
-  const [showCamera, setShowCamera] = useState(false)
   const [attendancePhoto, setAttendancePhoto] = useState<File | null>(null)
   const [photoPreviewUrl, setPhotoPreviewUrl] = useState<string | null>(null)
   const [supabasePhotoUrl, setSupabasePhotoUrl] = useState<string | null>(null)
@@ -355,7 +354,6 @@ export default function PresensiPage() {
       const previewUrl = URL.createObjectURL(file)
       setPhotoPreviewUrl(previewUrl)
       
-      setShowCamera(false)
       toast.success("Foto berhasil diambil dan disimpan")
     } catch (error) {
       console.error("Photo upload error:", error)
@@ -770,7 +768,6 @@ export default function PresensiPage() {
               <h4 className="font-medium text-sm text-muted-foreground">Kamera Selfie</h4>
               <CameraCapture
                 onCapture={handlePhotoCapture}
-                onCancel={() => setShowCamera(false)}
               />
             </div>
 

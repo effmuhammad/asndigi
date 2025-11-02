@@ -1,6 +1,7 @@
 "use client"
 
 import { useState, useRef, useCallback, useEffect } from "react"
+import Image from "next/image"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent } from "@/components/ui/card"
 import { Camera, RotateCcw, X } from "lucide-react"
@@ -302,9 +303,11 @@ export function CameraCapture({ onCapture, onCancel, className = "" }: CameraCap
         <CardContent className="p-4">
           <div className="space-y-4">
             <div className="relative">
-              <img
+              <Image
                 src={capturedImage}
                 alt="Captured selfie"
+                width={400}
+                height={400}
                 className="w-full aspect-square object-cover rounded-lg"
               />
             </div>

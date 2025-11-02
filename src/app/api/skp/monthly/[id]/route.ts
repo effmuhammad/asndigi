@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server"
 import { auth } from "../../../../../../auth"
 import { prisma } from "@/lib/prisma"
 import { z } from "zod"
+import { calculateDeadline } from "@/lib/deadline-utils"
 
 // Schema validation untuk update SKP Monthly Entry
 const updateSkpMonthlySchema = z.object({
@@ -57,9 +58,15 @@ export async function GET(
       return NextResponse.json({ error: "Forbidden" }, { status: 403 })
     }
 
+    // Add deadline calculation to the entry
+    const entryWithDeadline = {
+      ...entry,
+      deadline: calculateDeadline(entry.year, entry.month)
+    }
+
     return NextResponse.json({
       success: true,
-      data: entry
+      data: entryWithDeadline
     })
 
   } catch (error) {
@@ -121,7 +128,11 @@ export async function PUT(
     if (validatedData.indicator !== undefined) updateData.indicator = validatedData.indicator
     if (validatedData.actionPlan !== undefined) updateData.action_plan = validatedData.actionPlan
     if (validatedData.targetRealization !== undefined) updateData.target_realization = validatedData.targetRealization
-    if (validatedData.supportingData !== undefined) updateData.supporting_data = validatedData.supportingData
+    if (validatedData.supportingData !== undefined) {
+      updateData.supporting_data = validatedData.supportingData
+      // Automatically set submission date when supporting data is provided, clear it when removed
+      updateData.supporting_data_submission_date = validatedData.supportingData ? new Date() : null
+    }
     if (validatedData.feedback !== undefined) updateData.feedback = validatedData.feedback
     if (validatedData.status !== undefined) updateData.status = validatedData.status
 
@@ -141,9 +152,15 @@ export async function PUT(
       }
     })
 
+    // Add deadline calculation to the updated entry
+    const updatedEntryWithDeadline = {
+      ...updatedEntry,
+      deadline: calculateDeadline(updatedEntry.year, updatedEntry.month)
+    }
+
     return NextResponse.json({
       success: true,
-      data: updatedEntry,
+      data: updatedEntryWithDeadline,
       message: "Sasaran Kinerja Pegawai berhasil diperbarui"
     })
 

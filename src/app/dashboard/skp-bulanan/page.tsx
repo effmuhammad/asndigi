@@ -11,10 +11,10 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { toast } from "sonner"
-import { Plus, Edit, Trash2, FileText, Upload, Download, Eye, Brain, Loader2 } from "lucide-react"
-import { format } from "date-fns"
-import { id } from "date-fns/locale"
+import { Plus, Edit, Trash2, Brain, Loader2, Users, Calendar, AlertTriangle } from "lucide-react"
+import { calculateDeadline, formatDeadline, isDeadlinePassed, getDaysUntilDeadline, isSubmissionLate } from "@/lib/deadline-utils"
 
 interface SkpMonthlyEntry {
   id: string
@@ -25,8 +25,10 @@ interface SkpMonthlyEntry {
   action_plan: string
   target_realization: string
   supporting_data?: string
+  supporting_data_submission_date?: string
   feedback?: string
   status: "DRAFT" | "SUBMITTED" | "APPROVED" | "REJECTED"
+  deadline?: Date // Calculated deadline field
   user: {
     name: string
     nip: string
@@ -47,6 +49,36 @@ interface SkpMonthlyFile {
   file_type: string
   file_size: number
   uploaded_at: string
+}
+
+interface SkpMonthlyBehavior {
+  id: string
+  month: number
+  year: number
+  behavior: string
+  feedback: string
+  behavior_category?: string
+  assessment_score?: number
+  improvement_notes?: string
+  user: {
+    name: string
+    nip: string
+  }
+  supervisor?: {
+    name: string
+  }
+  created_by_user: {
+    name: string
+  }
+  created_at: string
+  updated_at: string
+}
+
+interface BehaviorFormData {
+  month: number
+  year: number
+  behavior: string
+  feedback: string
 }
 
 interface FormData {
@@ -94,27 +126,18 @@ const MONTHS = [
   { value: 12, label: "Desember" }
 ]
 
-const STATUS_COLORS = {
-  DRAFT: "bg-gray-100 text-gray-800",
-  SUBMITTED: "bg-blue-100 text-blue-800",
-  APPROVED: "bg-green-100 text-green-800",
-  REJECTED: "bg-red-100 text-red-800"
-}
-
-const STATUS_LABELS = {
-  DRAFT: "Draft",
-  SUBMITTED: "Diajukan",
-  APPROVED: "Disetujui",
-  REJECTED: "Ditolak"
-}
-
 export default function SkpBulananPage() {
   const { data: session } = useSession()
   const [entries, setEntries] = useState<SkpMonthlyEntry[]>([])
+  const [behaviors, setBehaviors] = useState<SkpMonthlyBehavior[]>([])
   const [isLoading, setIsLoading] = useState(true)
+  const [isBehaviorLoading, setIsBehaviorLoading] = useState(true)
   const [isDialogOpen, setIsDialogOpen] = useState(false)
+  const [isBehaviorDialogOpen, setIsBehaviorDialogOpen] = useState(false)
   const [editingEntry, setEditingEntry] = useState<SkpMonthlyEntry | null>(null)
+  const [editingBehavior, setEditingBehavior] = useState<SkpMonthlyBehavior | null>(null)
   const [selectedYear, setSelectedYear] = useState(new Date().getFullYear())
+  const [activeTab, setActiveTab] = useState("kinerja")
   const [aiSummary, setAiSummary] = useState<AiSummaryData | null>(null)
   const [isGeneratingSummary, setIsGeneratingSummary] = useState(false)
   const [showAiSummary, setShowAiSummary] = useState(false)
@@ -126,6 +149,12 @@ export default function SkpBulananPage() {
     targetRealization: "",
     supportingData: ""
   })
+  const [behaviorFormData, setBehaviorFormData] = useState<BehaviorFormData>({
+    month: new Date().getMonth() + 1,
+    year: new Date().getFullYear(),
+    behavior: "",
+    feedback: ""
+  })
 
   // Load entries from API
   const loadEntries = async () => {
@@ -134,7 +163,12 @@ export default function SkpBulananPage() {
       const response = await fetch(`/api/skp/monthly?year=${selectedYear}`)
       if (response.ok) {
         const data = await response.json()
-        setEntries(data.data || [])
+        // Add deadline calculation to each entry
+        const entriesWithDeadlines = (data.data || []).map((entry: SkpMonthlyEntry) => ({
+          ...entry,
+          deadline: calculateDeadline(entry.year, entry.month)
+        }))
+        setEntries(entriesWithDeadlines)
       } else {
         toast.error("Gagal memuat data SKP")
       }
@@ -146,10 +180,30 @@ export default function SkpBulananPage() {
     }
   }
 
+  // Load behaviors from API
+  const loadBehaviors = async () => {
+    try {
+      setIsBehaviorLoading(true)
+      const response = await fetch(`/api/skp/monthly/behavior?year=${selectedYear}`)
+      if (response.ok) {
+        const data = await response.json()
+        setBehaviors(data.data || [])
+      } else {
+        toast.error("Gagal memuat data perilaku")
+      }
+    } catch (error) {
+      console.error("Error loading behaviors:", error)
+      toast.error("Terjadi kesalahan saat memuat data perilaku")
+    } finally {
+      setIsBehaviorLoading(false)
+    }
+  }
+
   // Load data when session or year changes
   useEffect(() => {
     if (session) {
       loadEntries()
+      loadBehaviors()
     }
   }, [session, selectedYear])
 
@@ -245,6 +299,88 @@ export default function SkpBulananPage() {
     resetForm()
   }
 
+  // Behavior form functions
+  const handleBehaviorSubmit = async (e: React.FormEvent) => {
+    e.preventDefault()
+    
+    try {
+      const url = editingBehavior ? `/api/skp/monthly/behavior/${editingBehavior.id}` : '/api/skp/monthly/behavior'
+      const method = editingBehavior ? 'PUT' : 'POST'
+      
+      const response = await fetch(url, {
+        method,
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          month: behaviorFormData.month,
+          year: behaviorFormData.year,
+          behavior: behaviorFormData.behavior,
+          feedback: behaviorFormData.feedback
+        })
+      })
+
+      if (response.ok) {
+        toast.success(editingBehavior ? "Data perilaku berhasil diperbarui" : "Data perilaku berhasil ditambahkan")
+        setIsBehaviorDialogOpen(false)
+        resetBehaviorForm()
+        loadBehaviors()
+      } else {
+        const error = await response.json()
+        toast.error(error.error || "Gagal menyimpan data perilaku")
+      }
+    } catch (error) {
+      console.error("Error submitting behavior form:", error)
+      toast.error("Terjadi kesalahan saat menyimpan data perilaku")
+    }
+  }
+
+  const handleBehaviorDelete = async (id: string) => {
+    if (!confirm("Apakah Anda yakin ingin menghapus data perilaku ini?")) return
+
+    try {
+      const response = await fetch(`/api/skp/monthly/behavior/${id}`, {
+        method: 'DELETE'
+      })
+
+      if (response.ok) {
+        toast.success("Data perilaku berhasil dihapus")
+        loadBehaviors()
+      } else {
+        toast.error("Gagal menghapus data perilaku")
+      }
+    } catch (error) {
+      console.error("Error deleting behavior:", error)
+      toast.error("Terjadi kesalahan saat menghapus data perilaku")
+    }
+  }
+
+  const handleBehaviorEdit = (behavior: SkpMonthlyBehavior) => {
+    setEditingBehavior(behavior)
+    setBehaviorFormData({
+      month: behavior.month,
+      year: behavior.year,
+      behavior: behavior.behavior,
+      feedback: behavior.feedback
+    })
+    setIsBehaviorDialogOpen(true)
+  }
+
+  const resetBehaviorForm = () => {
+    setBehaviorFormData({
+      month: new Date().getMonth() + 1,
+      year: new Date().getFullYear(),
+      behavior: "",
+      feedback: ""
+    })
+    setEditingBehavior(null)
+  }
+
+  const handleBehaviorDialogClose = () => {
+    setIsBehaviorDialogOpen(false)
+    resetBehaviorForm()
+  }
+
   // Generate years for selection
   const currentYear = new Date().getFullYear()
   const years = Array.from({ length: 5 }, (_, i) => currentYear - 2 + i)
@@ -308,7 +444,7 @@ export default function SkpBulananPage() {
             <DialogTrigger asChild>
               <Button onClick={() => setIsDialogOpen(true)}>
                 <Plus className="h-4 w-4 mr-2" />
-                Tambah SKP
+                Tambah Kinerja
               </Button>
             </DialogTrigger>
             <DialogContent className="max-w-2xl">
@@ -398,12 +534,12 @@ export default function SkpBulananPage() {
                 </div>
 
                 <div className="space-y-2">
-                  <Label htmlFor="supportingData">Data Dukung</Label>
+                  <Label htmlFor="supportingData">Bukti Data Dukung</Label>
                   <Textarea
                     id="supportingData"
                     value={formData.supportingData}
                     onChange={(e) => setFormData({ ...formData, supportingData: e.target.value })}
-                    placeholder="Masukkan data dukung (opsional)"
+                    placeholder="Masukkan data dukung"
                     rows={2}
                   />
                 </div>
@@ -414,6 +550,98 @@ export default function SkpBulananPage() {
                   </Button>
                   <Button type="submit">
                     {editingEntry ? "Perbarui" : "Simpan"}
+                  </Button>
+                </div>
+              </form>
+            </DialogContent>
+          </Dialog>
+          
+          <Dialog open={isBehaviorDialogOpen} onOpenChange={setIsBehaviorDialogOpen}>
+            <DialogTrigger asChild>
+              <Button variant="outline" onClick={() => setIsBehaviorDialogOpen(true)}>
+                <Users className="h-4 w-4 mr-2" />
+                Tambah Perilaku
+              </Button>
+            </DialogTrigger>
+            <DialogContent className="max-w-2xl">
+              <DialogHeader>
+                <DialogTitle>
+                  {editingBehavior ? "Edit Data Perilaku" : "Tambah Data Perilaku"}
+                </DialogTitle>
+                <DialogDescription>
+                  {editingBehavior ? "Perbarui data perilaku pegawai" : "Tambahkan data perilaku pegawai baru"}
+                </DialogDescription>
+              </DialogHeader>
+              
+              <form onSubmit={handleBehaviorSubmit} className="space-y-4">
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="space-y-2">
+                    <Label htmlFor="month">Bulan</Label>
+                    <Select
+                      value={behaviorFormData.month.toString()}
+                      onValueChange={(value) => setBehaviorFormData({ ...behaviorFormData, month: parseInt(value) })}
+                    >
+                      <SelectTrigger>
+                        <SelectValue placeholder="Pilih bulan" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {MONTHS.map((month) => (
+                          <SelectItem key={month.value} value={month.value.toString()}>
+                            {month.label}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  
+                  <div className="space-y-2">
+                    <Label htmlFor="year">Tahun</Label>
+                    <Select
+                      value={behaviorFormData.year.toString()}
+                      onValueChange={(value) => setBehaviorFormData({ ...behaviorFormData, year: parseInt(value) })}
+                    >
+                      <SelectTrigger>
+                        <SelectValue placeholder="Pilih tahun" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {years.map((year) => (
+                          <SelectItem key={year} value={year.toString()}>
+                            {year}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="behavior">Perilaku</Label>
+                  <Textarea
+                    id="behavior"
+                    placeholder="Masukkan deskripsi perilaku..."
+                    value={behaviorFormData.behavior}
+                    onChange={(e) => setBehaviorFormData({ ...behaviorFormData, behavior: e.target.value })}
+                    required
+                  />
+                </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="feedback">Feedback</Label>
+                  <Textarea
+                    id="feedback"
+                    placeholder="Masukkan feedback..."
+                    value={behaviorFormData.feedback}
+                    onChange={(e) => setBehaviorFormData({ ...behaviorFormData, feedback: e.target.value })}
+                    required
+                  />
+                </div>
+
+                <div className="flex justify-end space-x-2">
+                  <Button type="button" variant="outline" onClick={handleBehaviorDialogClose}>
+                    Batal
+                  </Button>
+                  <Button type="submit">
+                    {editingBehavior ? "Perbarui" : "Simpan"}
                   </Button>
                 </div>
               </form>
@@ -526,155 +754,301 @@ export default function SkpBulananPage() {
         </Card>
       )}
 
-      {/* Data Table */}
-      <Card>
-        <CardHeader>
-          <div className="flex items-center justify-between">
-            <div>
-              <CardTitle>Tabel Rencana dan Realisasi</CardTitle>
-              <CardDescription>
-                SKP tahun {selectedYear}
-              </CardDescription>
-            </div>
-            <div className="flex items-center space-x-4">
-              <Label htmlFor="yearFilter">Tahun:</Label>
-              <Select
-                value={selectedYear.toString()}
-                onValueChange={(value) => setSelectedYear(parseInt(value))}
-              >
-                <SelectTrigger className="w-32">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  {years.map((year) => (
-                    <SelectItem key={year} value={year.toString()}>
-                      {year}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-          </div>
-        </CardHeader>
-        <CardContent>
-          {isLoading ? (
-            <div className="text-center py-8">
-              <p>Memuat data...</p>
-            </div>
-          ) : entries.length === 0 ? (
-            <div className="text-center py-8">
-              <p className="text-muted-foreground">Belum ada data Sasaran Kinerja Pegawai untuk tahun {selectedYear}</p>
-            </div>
-          ) : (
-            <div className="overflow-x-auto">
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead className="w-16">No.</TableHead>
-                    <TableHead>Bulan</TableHead>
-                    <TableHead>Indikator</TableHead>
-                    <TableHead>Rencana Aksi</TableHead>
-                    <TableHead>Realisasi Target</TableHead>
-                    <TableHead>Data Dukung</TableHead>
-                    <TableHead>Feedback</TableHead>
-                    <TableHead className="w-32">Aksi</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {entries
-                    .sort((a, b) => a.month - b.month)
-                    .reduce((acc, entry, index, sortedEntries) => {
-                      const currentMonth = entry.month;
-                      const prevMonth = index > 0 ? sortedEntries[index - 1].month : null;
-                      
-                      // Add month header if it's a new month
-                      if (currentMonth !== prevMonth) {
-                        const monthLabel = MONTHS.find(m => m.value === currentMonth)?.label;
-                        acc.push(
-                          <TableRow key={`month-header-${currentMonth}`} className="bg-muted/50">
-                            <TableCell colSpan={8} className="font-semibold text-center py-3">
-                              {monthLabel} (Bulan {currentMonth})
-                            </TableCell>
-                          </TableRow>
-                        );
-                      }
-                      
-                      // Add the actual data row
-                      acc.push(
-                        <TableRow key={entry.id}>
-                          <TableCell>{index + 1}</TableCell>
-                          <TableCell>
-                            {MONTHS.find(m => m.value === entry.month)?.label}
-                          </TableCell>
-                          <TableCell className="max-w-48">
-                            <div className="truncate" title={entry.indicator}>
-                              {entry.indicator}
-                            </div>
-                          </TableCell>
-                          <TableCell className="max-w-48">
-                            <div className="truncate" title={entry.action_plan}>
-                              {entry.action_plan}
-                            </div>
-                          </TableCell>
-                          <TableCell className="max-w-48">
-                            <div className="truncate" title={entry.target_realization}>
-                              {entry.target_realization}
-                            </div>
-                          </TableCell>
-                          <TableCell className="max-w-32">
-                            <div className="flex items-center space-x-2">
-                              {entry.supporting_data && (
-                                <div className="truncate text-sm" title={entry.supporting_data}>
-                                  {entry.supporting_data}
+      {/* Tabbed Interface */}
+      <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
+        <TabsList className="grid w-full grid-cols-2">
+          <TabsTrigger value="kinerja">Kinerja</TabsTrigger>
+          <TabsTrigger value="perilaku">Perilaku</TabsTrigger>
+        </TabsList>
+        
+        {/* Kinerja Tab */}
+        <TabsContent value="kinerja">
+          <Card>
+            <CardHeader>
+              <div className="flex items-center justify-between">
+                <div>
+                  <CardTitle>Tabel Rencana dan Realisasi</CardTitle>
+                  <CardDescription>
+                    SKP tahun {selectedYear}
+                  </CardDescription>
+                </div>
+                <div className="flex items-center space-x-4">
+                  <Label htmlFor="yearFilter">Tahun:</Label>
+                  <Select
+                    value={selectedYear.toString()}
+                    onValueChange={(value) => setSelectedYear(parseInt(value))}
+                  >
+                    <SelectTrigger className="w-32">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {years.map((year) => (
+                        <SelectItem key={year} value={year.toString()}>
+                          {year}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
+            </CardHeader>
+            <CardContent>
+              {isLoading ? (
+                <div className="text-center py-8">
+                  <p>Memuat data...</p>
+                </div>
+              ) : entries.length === 0 ? (
+                <div className="text-center py-8">
+                  <p className="text-muted-foreground">Belum ada data Sasaran Kinerja Pegawai untuk tahun {selectedYear}</p>
+                </div>
+              ) : (
+                <div className="overflow-x-auto">
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead className="w-16">No.</TableHead>
+                        <TableHead>Indikator</TableHead>
+                        <TableHead>Rencana Aksi</TableHead>
+                        <TableHead>Realisasi Target</TableHead>
+                        <TableHead>Bukti Data Dukung</TableHead>
+                        <TableHead>Tanggal Pengumpulan</TableHead>
+                        <TableHead>Feedback</TableHead>
+                        <TableHead className="w-32">Aksi</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {entries
+                        .sort((a, b) => a.month - b.month)
+                        .reduce((acc, entry, index, sortedEntries) => {
+                          const currentMonth = entry.month;
+                          const prevMonth = index > 0 ? sortedEntries[index - 1].month : null;
+                          
+                          // Add month header if it's a new month
+                          if (currentMonth !== prevMonth) {
+                            const monthLabel = MONTHS.find(m => m.value === currentMonth)?.label;
+                            acc.push(
+                              <TableRow key={`month-header-${currentMonth}`} className="bg-muted/50">
+                                <TableCell colSpan={8} className="font-semibold text-center py-3">
+                                  {monthLabel} (Bulan {currentMonth})
+                                </TableCell>
+                              </TableRow>
+                            );
+                          }
+                          
+                          // Add the actual data row
+                          acc.push(
+                            <TableRow key={entry.id}>
+                              <TableCell>{index + 1}</TableCell>
+                              <TableCell className="min-w-48">
+                                <div className="whitespace-normal break-words">
+                                  {entry.indicator}
                                 </div>
-                              )}
-                              {entry.files.length > 0 && (
-                                <Badge variant="secondary" className="text-xs">
-                                  {entry.files.length} file
-                                </Badge>
-                              )}
-                            </div>
-                          </TableCell>
-                          <TableCell className="max-w-32">
-                            {entry.feedback ? (
-                              <div className="truncate text-sm" title={entry.feedback}>
-                                {entry.feedback}
-                              </div>
-                            ) : (
-                              <span className="text-muted-foreground text-sm">-</span>
-                            )}
-                          </TableCell>
-                          <TableCell>
-                            <div className="flex items-center space-x-1">
-                              <Button
-                                variant="ghost"
-                                size="sm"
-                                onClick={() => handleEdit(entry)}
-                                title="Edit"
-                              >
-                                <Edit className="h-4 w-4" />
-                              </Button>
-                              <Button
-                                variant="ghost"
-                                size="sm"
-                                onClick={() => handleDelete(entry.id)}
-                                title="Hapus"
-                              >
-                                <Trash2 className="h-4 w-4" />
-                              </Button>
-                            </div>
-                          </TableCell>
-                        </TableRow>
-                      );
-                      
-                      return acc;
-                    }, [] as React.ReactElement[])}
-                </TableBody>
-              </Table>
-            </div>
-          )}
-        </CardContent>
-      </Card>
+                              </TableCell>
+                              <TableCell className="min-w-48">
+                                <div className="whitespace-normal break-words">
+                                  {entry.action_plan}
+                                </div>
+                              </TableCell>
+                              <TableCell className="min-w-48">
+                                <div className="whitespace-normal break-words">
+                                  {entry.target_realization}
+                                </div>
+                              </TableCell>
+                              <TableCell className="min-w-32">
+                                <div className="flex flex-col space-y-2">
+                                  {entry.supporting_data && (
+                                    <div className="whitespace-normal break-words text-sm">
+                                      {entry.supporting_data}
+                                    </div>
+                                  )}
+                                  {entry.files.length > 0 && (
+                                    <Badge variant="secondary" className="text-xs w-fit">
+                                      {entry.files.length} file
+                                    </Badge>
+                                  )}
+                                </div>
+                              </TableCell>
+                              <TableCell className="min-w-32">
+                                {entry.supporting_data_submission_date ? (
+                                  <div className="flex items-center gap-2 flex-wrap">
+                                    <div className="text-sm">
+                                      {new Date(entry.supporting_data_submission_date).toLocaleDateString('id-ID')}
+                                    </div>
+                                    {entry.deadline && isSubmissionLate(entry.supporting_data_submission_date, entry.deadline) ? (
+                                      <div className="flex items-center gap-1 text-red-600">
+                                        <AlertTriangle className="h-3 w-3" />
+                                        <span className="text-xs font-medium">Terlewat</span>
+                                      </div>
+                                    ) : entry.deadline && (
+                                      <div className="flex items-center gap-1 text-green-600">
+                                        <Calendar className="h-3 w-3" />
+                                        <span className="text-xs font-medium">Tepat Waktu</span>
+                                      </div>
+                                    )}
+                                  </div>
+                                ) : (
+                                  <span className="text-muted-foreground text-sm">-</span>
+                                )}
+                              </TableCell>
+                              <TableCell className="min-w-32">
+                                {entry.feedback ? (
+                                  <div className="whitespace-normal break-words text-sm">
+                                    {entry.feedback}
+                                  </div>
+                                ) : (
+                                  <span className="text-muted-foreground text-sm">-</span>
+                                )}
+                              </TableCell>
+                              <TableCell>
+                                <div className="flex items-center space-x-1">
+                                  <Button
+                                    variant="ghost"
+                                    size="sm"
+                                    onClick={() => handleEdit(entry)}
+                                    title="Edit"
+                                  >
+                                    <Edit className="h-4 w-4" />
+                                  </Button>
+                                  <Button
+                                    variant="ghost"
+                                    size="sm"
+                                    onClick={() => handleDelete(entry.id)}
+                                    title="Hapus"
+                                  >
+                                    <Trash2 className="h-4 w-4" />
+                                  </Button>
+                                </div>
+                              </TableCell>
+                            </TableRow>
+                          );
+                          
+                          return acc;
+                        }, [] as React.ReactElement[])}
+                    </TableBody>
+                  </Table>
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        </TabsContent>
+        
+        {/* Perilaku Tab */}
+        <TabsContent value="perilaku">
+          <Card>
+            <CardHeader>
+              <div className="flex items-center justify-between">
+                <div>
+                  <CardTitle>Tabel Data Perilaku</CardTitle>
+                  <CardDescription>
+                    Data perilaku pegawai tahun {selectedYear}
+                  </CardDescription>
+                </div>
+                <div className="flex items-center space-x-4">
+                  <Label htmlFor="yearFilterBehavior">Tahun:</Label>
+                  <Select
+                    value={selectedYear.toString()}
+                    onValueChange={(value) => setSelectedYear(parseInt(value))}
+                  >
+                    <SelectTrigger className="w-32">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {years.map((year) => (
+                        <SelectItem key={year} value={year.toString()}>
+                          {year}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
+            </CardHeader>
+            <CardContent>
+              {isBehaviorLoading ? (
+                <div className="text-center py-8">
+                  <p>Memuat data perilaku...</p>
+                </div>
+              ) : behaviors.length === 0 ? (
+                <div className="text-center py-8">
+                  <p className="text-muted-foreground">Belum ada data perilaku untuk tahun {selectedYear}</p>
+                </div>
+              ) : (
+                <div className="overflow-x-auto">
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead className="w-16">No.</TableHead>
+                        <TableHead>Perilaku</TableHead>
+                        <TableHead>Feedback</TableHead>
+                        <TableHead className="w-32">Aksi</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {behaviors
+                        .sort((a, b) => a.month - b.month)
+                        .reduce((acc, behavior, index, sortedBehaviors) => {
+                          const currentMonth = behavior.month;
+                          const prevMonth = index > 0 ? sortedBehaviors[index - 1].month : null;
+                          
+                          // Add month header if it's a new month
+                          if (currentMonth !== prevMonth) {
+                            const monthLabel = MONTHS.find(m => m.value === currentMonth)?.label;
+                            acc.push(
+                              <TableRow key={`month-header-${currentMonth}`} className="bg-muted/50">
+                                <TableCell colSpan={4} className="font-semibold text-center py-3">
+                                  {monthLabel} (Bulan {currentMonth})
+                                </TableCell>
+                              </TableRow>
+                            );
+                          }
+                          
+                          // Add the actual data row
+                          acc.push(
+                            <TableRow key={behavior.id}>
+                              <TableCell>{index + 1}</TableCell>
+                              <TableCell className="min-w-48">
+                                <div className="whitespace-normal break-words">
+                                  {behavior.behavior}
+                                </div>
+                              </TableCell>
+                              <TableCell className="min-w-48">
+                                <div className="whitespace-normal break-words">
+                                  {behavior.feedback}
+                                </div>
+                              </TableCell>
+                              <TableCell>
+                                <div className="flex items-center space-x-1">
+                                  <Button
+                                    variant="ghost"
+                                    size="sm"
+                                    onClick={() => handleBehaviorEdit(behavior)}
+                                    title="Edit"
+                                  >
+                                    <Edit className="h-4 w-4" />
+                                  </Button>
+                                  <Button
+                                    variant="ghost"
+                                    size="sm"
+                                    onClick={() => handleBehaviorDelete(behavior.id)}
+                                    title="Hapus"
+                                  >
+                                    <Trash2 className="h-4 w-4" />
+                                  </Button>
+                                </div>
+                              </TableCell>
+                            </TableRow>
+                          );
+                          
+                          return acc;
+                        }, [] as React.ReactElement[])}
+                    </TableBody>
+                  </Table>
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        </TabsContent>
+      </Tabs>
     </div>
   )
 }

@@ -2,6 +2,8 @@ import NextAuth from "next-auth"
 import Credentials from "next-auth/providers/credentials"
 import { prisma } from "@/lib/prisma"
 import bcrypt from "bcryptjs"
+import type { JWT } from "next-auth/jwt"
+import type { Session } from "next-auth"
 
 export const { handlers, signIn, signOut, auth } = NextAuth({
   providers: [
@@ -56,7 +58,7 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
     strategy: "jwt" as const
   },
   callbacks: {
-    async jwt({ token, user }: any) {
+    async jwt({ token, user }: { token: JWT; user?: any }) {
       if (user) {
         token.id = user.id  // Store the actual database user ID
         token.role = user.role
@@ -65,7 +67,7 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
       }
       return token
     },
-    async session({ session, token }: any) {
+    async session({ session, token }: { session: Session; token: JWT }) {
       if (token) {
         session.user.id = token.id as string  // Use the stored database user ID
         session.user.role = token.role as string

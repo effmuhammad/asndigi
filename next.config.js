@@ -1,3 +1,5 @@
+import path from 'path'
+
 /** @type {import('next').NextConfig} */
 const nextConfig = {
   eslint: {
@@ -15,7 +17,7 @@ const nextConfig = {
   webpack: (config) => {
     config.resolve.alias = {
       ...config.resolve.alias,
-      '@/auth': require('path').resolve(__dirname, 'auth.ts'),
+      '@/auth': path.resolve(process.cwd(), 'auth.ts'),
     }
     return config
   },
@@ -30,4 +32,4 @@ const nextConfig = {
   },
 }
 
-module.exports = nextConfig
+export default nextConfig

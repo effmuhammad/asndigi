@@ -1,6 +1,7 @@
 "use client"
 
-import { Calendar, Home, Inbox, Search, Settings, Users, FileText, BarChart3, Clock, Target, ClipboardCheck, UserCog, Building2 } from "lucide-react"
+import Image from "next/image"
+import { Calendar, Home, Users, Clock, ClipboardCheck, UserCog } from "lucide-react"
 import { useSession } from "next-auth/react"
 import { usePathname } from "next/navigation"
 
@@ -36,7 +37,7 @@ const items = [
     icon: Calendar,
   },
   {
-    title: "Laporan Kinerja",
+    title: "Laporan Akhir Kinerja",
     url: "/dashboard/laporan-kinerja",
     icon: ClipboardCheck,
   },
@@ -70,7 +71,7 @@ export function AppSidebar() {
       <SidebarHeader>
         <div className="flex items-center gap-2 px-2 py-2">
           <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-white border border-blue-500">
-            <img src="/logo.png" alt="PRIMA ASN" className="w-6" />
+            <Image src="/logo.png" alt="PRIMA ASN" width={24} height={24} className="w-6" />
           </div>
           <div className="grid flex-1 text-left text-sm leading-tight">
             <span className="truncate font-semibold text-blue-500">PRIMA ASN</span>

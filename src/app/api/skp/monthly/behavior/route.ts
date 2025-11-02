@@ -1,21 +1,20 @@
 import { NextRequest, NextResponse } from "next/server"
-import { auth } from "../../../../../auth"
+import { auth } from "../../../../../../auth"
 import { prisma } from "@/lib/prisma"
 import { z } from "zod"
-import { calculateDeadline } from "@/lib/deadline-utils"
 
-// Schema validation untuk SKP Monthly Entry
-const skpMonthlySchema = z.object({
+// Schema validation untuk SKP Monthly Behavior
+const skpMonthlyBehaviorSchema = z.object({
   month: z.number().min(1).max(12),
   year: z.number().min(2020).max(2030),
-  indicator: z.string().min(1, "Indikator harus diisi"),
-  actionPlan: z.string().min(1, "Rencana aksi harus diisi"),
-  targetRealization: z.string().min(1, "Realisasi target harus diisi"),
-  supportingData: z.string().optional(),
-  feedback: z.string().optional(),
+  behavior: z.string().min(1, "Perilaku harus diisi"),
+  feedback: z.string().min(1, "Feedback harus diisi"),
+  behavior_category: z.string().optional(),
+  assessment_score: z.number().min(1).max(5).optional(),
+  improvement_notes: z.string().optional(),
 })
 
-// GET - Ambil data Sasaran Kinerja Pegawai
+// GET - Ambil data Perilaku SKP Bulanan
 export async function GET(request: NextRequest) {
   try {
     const session = await auth()
@@ -59,7 +58,7 @@ export async function GET(request: NextRequest) {
       whereClause.month = month
     }
 
-    const entries = await prisma.skpMonthlyEntry.findMany({
+    const behaviors = await prisma.skpMonthlyBehavior.findMany({
       where: whereClause,
       include: {
         user: {
@@ -68,33 +67,29 @@ export async function GET(request: NextRequest) {
         supervisor: {
           select: { name: true }
         },
-        files: true
+        creator: {
+          select: { name: true }
+        }
       },
       orderBy: [
         { year: "desc" },
         { month: "desc" },
-        { sequence_no: "asc" }
+        { created_at: "desc" }
       ]
     })
 
-    const total = await prisma.skpMonthlyEntry.count({
+    const total = await prisma.skpMonthlyBehavior.count({
       where: whereClause
     })
 
-    // Add deadline calculation to each entry
-    const entriesWithDeadlines = entries.map(entry => ({
-      ...entry,
-      deadline: calculateDeadline(entry.year, entry.month)
-    }))
-
     return NextResponse.json({
       success: true,
-      data: entriesWithDeadlines,
+      data: behaviors,
       total
     })
 
   } catch (error) {
-    console.error("Error fetching SKP monthly entries:", error)
+    console.error("Error fetching SKP monthly behaviors:", error)
     return NextResponse.json(
       { error: "Internal server error" },
       { status: 500 }
@@ -102,7 +97,7 @@ export async function GET(request: NextRequest) {
   }
 }
 
-// POST - Tambah data Sasaran Kinerja Pegawai baru
+// POST - Tambah data Perilaku SKP Bulanan baru
 export async function POST(request: NextRequest) {
   try {
     const session = await auth()
@@ -111,7 +106,7 @@ export async function POST(request: NextRequest) {
     }
 
     const body = await request.json()
-    const validatedData = skpMonthlySchema.parse(body)
+    const validatedData = skpMonthlyBehaviorSchema.parse(body)
 
     // Get user data for supervisor_id
     const user = await prisma.user.findUnique({
@@ -119,33 +114,18 @@ export async function POST(request: NextRequest) {
       select: { supervisor_id: true }
     })
 
-    // Get next sequence number for this user/month/year
-    const lastEntry = await prisma.skpMonthlyEntry.findFirst({
-      where: {
-        user_id: session.user.id,
-        year: validatedData.year,
-        month: validatedData.month
-      },
-      orderBy: { sequence_no: "desc" }
-    })
-
-    const nextSequenceNo = (lastEntry?.sequence_no || 0) + 1
-
-    const newEntry = await prisma.skpMonthlyEntry.create({
+    const newBehavior = await prisma.skpMonthlyBehavior.create({
       data: {
         user_id: session.user.id,
         month: validatedData.month,
         year: validatedData.year,
-        sequence_no: nextSequenceNo,
-        indicator: validatedData.indicator,
-        action_plan: validatedData.actionPlan,
-        target_realization: validatedData.targetRealization,
-        supporting_data: validatedData.supportingData,
-        supporting_data_submission_date: validatedData.supportingData ? new Date() : null,
+        behavior: validatedData.behavior,
         feedback: validatedData.feedback,
+        behavior_category: validatedData.behavior_category,
+        assessment_score: validatedData.assessment_score,
+        improvement_notes: validatedData.improvement_notes,
         created_by: session.user.id,
         supervisor_id: user?.supervisor_id,
-        status: "DRAFT"
       },
       include: {
         user: {
@@ -154,20 +134,16 @@ export async function POST(request: NextRequest) {
         supervisor: {
           select: { name: true }
         },
-        files: true
+        creator: {
+          select: { name: true }
+        }
       }
     })
 
-    // Add deadline calculation to the new entry
-    const newEntryWithDeadline = {
-      ...newEntry,
-      deadline: calculateDeadline(newEntry.year, newEntry.month)
-    }
-
     return NextResponse.json({
       success: true,
-      data: newEntryWithDeadline,
-      message: "Sasaran Kinerja Pegawai berhasil ditambahkan"
+      data: newBehavior,
+      message: "Data perilaku berhasil ditambahkan"
     }, { status: 201 })
 
   } catch (error) {
@@ -178,7 +154,7 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    console.error("Error creating SKP monthly entry:", error)
+    console.error("Error creating SKP monthly behavior:", error)
     return NextResponse.json(
       { error: "Internal server error" },
       { status: 500 }
