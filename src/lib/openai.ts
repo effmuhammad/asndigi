@@ -101,7 +101,7 @@ ${index + 1}. Bulan ${entry.month}/${entry.year}
     "challenges": ["tantangan 1", "tantangan 2", "tantangan 3"],
     "recommendations": ["rekomendasi 1", "rekomendasi 2", "rekomendasi 3"]
   },
-  "performance_score": 85
+  "performance_score": 0 // Will be calculated based on actual data
 }
 
 Pastikan response dalam format JSON yang valid dan menggunakan bahasa Indonesia yang formal dan profesional.
@@ -137,6 +137,10 @@ Pastikan response dalam format JSON yang valid dan menggunakan bahasa Indonesia 
       throw new Error('Invalid response format from OpenAI')
     }
 
+    // Calculate objective performance score based on actual data
+    const objectiveScore = calculateObjectiveSkpScore(skpEntries)
+    parsedResponse.performance_score = objectiveScore
+
     return parsedResponse
 
   } catch (error) {
@@ -148,6 +152,177 @@ Pastikan response dalam format JSON yang valid dan menggunakan bahasa Indonesia 
     
     throw new Error('Failed to generate SKP summary: Unknown error')
   }
+}
+
+/**
+ * Calculate objective SKP performance score based on actual data
+ */
+function calculateObjectiveSkpScore(skpEntries: SkpSummaryData[]): number {
+  if (!skpEntries || skpEntries.length === 0) return 75 // Default neutral score
+  
+  let totalScore = 0
+  let maxPossibleScore = 0
+  
+  skpEntries.forEach(entry => {
+    let entryScore = 0
+    let entryMaxScore = 100
+    
+    // Status-based scoring (40% weight)
+    switch (entry.status) {
+      case 'APPROVED':
+        entryScore += 40
+        break
+      case 'SUBMITTED':
+        entryScore += 30
+        break
+      case 'DRAFT':
+        entryScore += 20
+        break
+      case 'REJECTED':
+        entryScore += 10
+        break
+      default:
+        entryScore += 15
+    }
+    
+    // Content quality scoring (60% weight)
+    // Target realization quality (30%)
+    if (entry.target_realization && entry.target_realization.length > 0) {
+      const realizationLength = entry.target_realization.length
+      if (realizationLength > 200) entryScore += 30
+      else if (realizationLength > 100) entryScore += 25
+      else if (realizationLength > 50) entryScore += 20
+      else if (realizationLength > 20) entryScore += 15
+      else entryScore += 10
+    } else {
+      entryScore += 5 // Minimal score for no realization
+    }
+    
+    // Supporting data availability (20%)
+    if (entry.supporting_data && entry.supporting_data.length > 0) {
+      const supportingLength = entry.supporting_data.length
+      if (supportingLength > 100) entryScore += 20
+      else if (supportingLength > 50) entryScore += 15
+      else if (supportingLength > 20) entryScore += 12
+      else entryScore += 8
+    } else {
+      entryScore += 5 // Minimal score for no supporting data
+    }
+    
+    // Feedback quality (10%)
+    if (entry.feedback && entry.feedback.length > 0) {
+      const feedbackLength = entry.feedback.length
+      if (feedbackLength > 50) entryScore += 10
+      else if (feedbackLength > 20) entryScore += 8
+      else entryScore += 5
+    } else {
+      entryScore += 3 // Minimal score for no feedback
+    }
+    
+    totalScore += entryScore
+    maxPossibleScore += entryMaxScore
+  })
+  
+  // Calculate average score
+  const averageScore = (totalScore / skpEntries.length)
+  
+  // Apply normalization to ensure score is within reasonable bounds (50-100)
+  return Math.max(50, Math.min(100, Math.round(averageScore)))
+}
+
+/**
+ * Calculate objective attendance performance score based on actual data
+ */
+function calculateObjectiveAttendanceScore(attendanceData: AttendanceSummaryData[]): number {
+  if (!attendanceData || attendanceData.length === 0) return 75 // Default neutral score
+  
+  let totalScore = 0
+  
+  attendanceData.forEach(entry => {
+    let entryScore = 0
+    
+    // Attendance status scoring (100% weight)
+    switch (entry.status) {
+      case 'PRESENT':
+        entryScore += 100
+        break
+      case 'SICK':
+        entryScore += 70
+        break
+      case 'LEAVE':
+        entryScore += 60
+        break
+      case 'ABSENT':
+        entryScore += 0
+        break
+      case 'LATE':
+        entryScore += 50 // Late arrival penalty
+        break
+      case 'EARLY_LEAVE':
+        entryScore += 40 // Early leave penalty
+        break
+      default:
+        entryScore += 30 // Unknown status gets minimal score
+    }
+    
+    // Additional factors for presence
+    if (entry.status === 'PRESENT') {
+      // Check-in time bonus (up to 10 points)
+      if (entry.check_in) {
+        const checkInHour = parseInt(entry.check_in.split(':')[0])
+        if (checkInHour <= 8) entryScore += 10 // Early arrival bonus
+        else if (checkInHour <= 9) entryScore += 5 // On-time arrival
+        else entryScore -= 5 // Late arrival penalty
+      }
+      
+      // Check-out time bonus (up to 10 points)
+      if (entry.check_out) {
+        const checkOutHour = parseInt(entry.check_out.split(':')[0])
+        if (checkOutHour >= 17) entryScore += 10 // Full day bonus
+        else if (checkOutHour >= 16) entryScore += 5 // Near full day
+        else entryScore -= 5 // Early departure penalty
+      }
+      
+      // Work duration bonus (up to 20 points)
+      if (entry.check_in && entry.check_out) {
+        const checkInMinutes = timeToMinutes(entry.check_in)
+        const checkOutMinutes = timeToMinutes(entry.check_out)
+        const workDuration = checkOutMinutes - checkInMinutes
+        
+        if (workDuration >= 480) entryScore += 20 // 8+ hours
+        else if (workDuration >= 420) entryScore += 15 // 7+ hours
+        else if (workDuration >= 360) entryScore += 10 // 6+ hours
+        else if (workDuration >= 300) entryScore += 5 // 5+ hours
+        else entryScore -= 10 // Less than 5 hours penalty
+      }
+      
+      // Working hours bonus (if available)
+      if (entry.working_hours) {
+        if (entry.working_hours >= 8) entryScore += 5
+        else if (entry.working_hours >= 7) entryScore += 3
+        else if (entry.working_hours >= 6) entryScore += 1
+        else entryScore -= 3
+      }
+    }
+    
+    // Ensure score is within bounds
+    entryScore = Math.max(0, Math.min(120, entryScore))
+    totalScore += entryScore
+  })
+  
+  // Calculate average score
+  const averageScore = (totalScore / attendanceData.length)
+  
+  // Normalize to 50-100 range for consistency with SKP scoring
+  return Math.max(50, Math.min(100, Math.round(averageScore)))
+}
+
+/**
+ * Convert time string (HH:MM) to minutes
+ */
+function timeToMinutes(timeString: string): number {
+  const [hours, minutes] = timeString.split(':').map(Number)
+  return hours * 60 + minutes
 }
 
 /**
@@ -265,7 +440,7 @@ Berikan analisis dalam format JSON dengan struktur berikut:
   },
   "patterns_insights": ["Insight 1", "Insight 2", "Insight 3"],
   "recommendations": ["Rekomendasi 1", "Rekomendasi 2", "Rekomendasi 3"],
-  "performance_score": 85
+  "performance_score": 0 // Will be calculated based on actual data
 }
 
 Pastikan:
@@ -300,6 +475,11 @@ Pastikan:
 
     try {
       const parsedResponse = JSON.parse(responseContent) as AttendanceSummaryResponse
+      
+      // Calculate objective performance score based on actual data
+      const objectiveScore = calculateObjectiveAttendanceScore(attendanceData)
+      parsedResponse.performance_score = objectiveScore
+      
       return parsedResponse
     } catch (parseError) {
       console.error('Error parsing OpenAI response:', parseError)

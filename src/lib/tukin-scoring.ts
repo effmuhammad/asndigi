@@ -619,3 +619,247 @@ function generateRiskAssessment(
 
   return { low_risk, medium_risk, high_risk };
 }
+
+/**
+ * Calculate monthly SKP score based on AI analysis of work results
+ * Following PP No. 46 Tahun 2011 scoring table:
+ * - 91+: Sangat tinggi (Diatas ekspektasi)
+ * - 85-90: Tinggi (Diatas ekspektasi)  
+ * - 71-85: Sedang (Sesuai Ekspektasi)
+ * - <70: Kurang (Dibawah ekspektasi)
+ * 
+ * @param aiScore - AI analysis score (0-100)
+ * @returns Object containing work result rating, predicate, and score
+ */
+export function calculateSkpWorkResultScore(aiScore: number): {
+  workResultRating: string;
+  predicate: string;
+  score: number;
+  category: string;
+} {
+  if (aiScore >= 91) {
+    return {
+      workResultRating: 'Diatas ekspektasi',
+      predicate: 'Sangat tinggi',
+      score: aiScore,
+      category: 'Sangat Baik'
+    };
+  } else if (aiScore >= 85 && aiScore <= 90) {
+    return {
+      workResultRating: 'Diatas ekspektasi',
+      predicate: 'Tinggi',
+      score: aiScore,
+      category: 'Baik'
+    };
+  } else if (aiScore >= 71 && aiScore <= 84) {
+    return {
+      workResultRating: 'Sesuai Ekspektasi',
+      predicate: 'Sedang',
+      score: aiScore,
+      category: 'Cukup'
+    };
+  } else {
+    return {
+      workResultRating: 'Dibawah ekspektasi',
+      predicate: 'Kurang',
+      score: aiScore,
+      category: 'Kurang'
+    };
+  }
+}
+
+/**
+ * Calculate behavior score based on manual assessment
+ * Score range: 1-5 (5 being excellent)
+ * 
+ * @param behaviorScore - Manual behavior assessment score (1-5)
+ * @returns Object containing behavior rating and category
+ */
+export function calculateBehaviorScore(behaviorScore: number): {
+  behaviorRating: string;
+  category: string;
+  score: number;
+} {
+  if (behaviorScore >= 4.5) {
+    return {
+      behaviorRating: 'Diatas ekspektasi',
+      category: 'Sangat Baik',
+      score: behaviorScore
+    };
+  } else if (behaviorScore >= 3.5 && behaviorScore < 4.5) {
+    return {
+      behaviorRating: 'Sesuai Ekspektasi',
+      category: 'Baik',
+      score: behaviorScore
+    };
+  } else if (behaviorScore >= 2.5 && behaviorScore < 3.5) {
+    return {
+      behaviorRating: 'Sesuai Ekspektasi',
+      category: 'Cukup',
+      score: behaviorScore
+    };
+  } else {
+    return {
+      behaviorRating: 'Dibawah ekspektasi',
+      category: 'Kurang',
+      score: behaviorScore
+    };
+  }
+}
+
+/**
+ * Calculate final Tukin score based on work result and behavior ratings
+ * Following Permenpan RB No. 6 Th 2022, PM 46 Th 2023, BKN No. 5 Th 2020
+ * 
+ * @param workResultRating - Work result rating from AI analysis
+ * @param behaviorRating - Behavior rating from manual assessment
+ * @param timelinessScore - Timeliness score (0-10)
+ * @returns Object containing final Tukin score and predicate
+ */
+export function calculateFinalTukinScore(
+  workResultRating: string,
+  behaviorRating: string,
+  timelinessScore: number
+): {
+  finalScore: number;
+  predicate: string;
+  workResultComponent: number;
+  behaviorComponent: number;
+  timelinessComponent: number;
+  tukinPercentage: number;
+} {
+  // Component weights: SKP 50% + Timeliness 10% = 60% for work performance
+  const workResultWeight = 0.5;
+  const timelinessWeight = 0.1;
+  const behaviorWeight = 0.4;
+
+  // Base score mapping based on ratings
+  const getBaseScore = (rating: string): number => {
+    switch (rating) {
+      case 'Diatas ekspektasi': return 90;
+      case 'Sesuai Ekspektasi': return 75;
+      case 'Dibawah ekspektasi': return 60;
+      default: return 50;
+    }
+  };
+
+  const workResultBaseScore = getBaseScore(workResultRating);
+  const behaviorBaseScore = getBaseScore(behaviorRating);
+
+  // Calculate components
+  const workResultComponent = workResultBaseScore * workResultWeight;
+  const timelinessComponent = (timelinessScore * 10) * timelinessWeight; // Convert 0-10 to 0-100 then apply weight
+  const behaviorComponent = behaviorBaseScore * behaviorWeight;
+
+  // Calculate final score (0-100)
+  const finalScore = workResultComponent + timelinessComponent + behaviorComponent;
+
+  // Determine Tukin percentage based on combination matrix
+  let tukinPercentage = 0;
+  let predicate = '';
+
+  if (workResultRating === 'Diatas ekspektasi' && behaviorRating === 'Diatas ekspektasi') {
+    tukinPercentage = 50;
+    predicate = 'Sangat Baik';
+  } else if (workResultRating === 'Diatas ekspektasi' && behaviorRating === 'Sesuai Ekspektasi') {
+    tukinPercentage = 50;
+    predicate = 'Baik';
+  } else if (workResultRating === 'Sesuai Ekspektasi' && behaviorRating === 'Sesuai Ekspektasi') {
+    tukinPercentage = 50;
+    predicate = 'Baik';
+  } else if (workResultRating === 'Dibawah ekspektasi' && behaviorRating === 'Diatas ekspektasi') {
+    tukinPercentage = 35;
+    predicate = 'Butuh Perbaikan';
+  } else if (workResultRating === 'Dibawah ekspektasi' && behaviorRating === 'Sesuai Ekspektasi') {
+    tukinPercentage = 35;
+    predicate = 'Butuh Perbaikan';
+  } else if (workResultRating === 'Diatas ekspektasi' && behaviorRating === 'Dibawah ekspektasi') {
+    tukinPercentage = 20;
+    predicate = 'Kurang/Misconduct';
+  } else if (workResultRating === 'Sesuai Ekspektasi' && behaviorRating === 'Dibawah ekspektasi') {
+    tukinPercentage = 20;
+    predicate = 'Kurang/Misconduct';
+  } else if (workResultRating === 'Dibawah ekspektasi' && behaviorRating === 'Dibawah ekspektasi') {
+    tukinPercentage = 0;
+    predicate = 'Sangat Kurang';
+  }
+
+  return {
+    finalScore: Math.round(finalScore * 10) / 10,
+    predicate,
+    workResultComponent: Math.round(workResultComponent * 10) / 10,
+    behaviorComponent: Math.round(behaviorComponent * 10) / 10,
+    timelinessComponent: Math.round(timelinessComponent * 10) / 10,
+    tukinPercentage
+  };
+}
+
+/**
+ * Calculate comprehensive monthly SKP score with all components
+ * 
+ * @param entries - SKP monthly entries
+ * @param behaviors - Behavior assessments
+ * @param aiAnalysisScore - AI analysis score (0-100)
+ * @param selectedMonth - Selected month
+ * @param selectedYear - Selected year
+ * @returns Comprehensive monthly SKP score calculation
+ */
+export function calculateMonthlySkpScore(
+  entries: Array<{
+    supporting_data_submission_date?: string | null;
+    deadline?: Date;
+    status: string;
+  }>,
+  behaviors: Array<{
+    assessment_score?: number | null;
+  }>,
+  aiAnalysisScore: number,
+  selectedMonth: number,
+  selectedYear: number
+): {
+  workResult: ReturnType<typeof calculateSkpWorkResultScore>;
+  behavior: ReturnType<typeof calculateBehaviorScore>;
+  timeliness: ReturnType<typeof calculateAverageTukinScore>;
+  finalTukin: ReturnType<typeof calculateFinalTukinScore>;
+  detailedBreakdown: {
+    skpComponent: number;
+    timelinessComponent: number;
+    behaviorComponent: number;
+    totalScore: number;
+  };
+} {
+  // Calculate work result score from AI analysis
+  const workResult = calculateSkpWorkResultScore(aiAnalysisScore);
+  
+  // Calculate behavior score from assessments
+  const avgBehaviorScore = behaviors.length > 0 
+    ? behaviors.reduce((sum, b) => sum + (b.assessment_score || 3), 0) / behaviors.length
+    : 3;
+  const behavior = calculateBehaviorScore(avgBehaviorScore);
+  
+  // Calculate timeliness score
+  const timeliness = calculateAverageTukinScore(entries);
+  
+  // Calculate final Tukin score
+  const finalTukin = calculateFinalTukinScore(
+    workResult.workResultRating,
+    behavior.behaviorRating,
+    timeliness.averageScore
+  );
+  
+  // Detailed breakdown
+  const detailedBreakdown = {
+    skpComponent: finalTukin.workResultComponent,
+    timelinessComponent: finalTukin.timelinessComponent,
+    behaviorComponent: finalTukin.behaviorComponent,
+    totalScore: finalTukin.finalScore
+  };
+
+  return {
+    workResult,
+    behavior,
+    timeliness,
+    finalTukin,
+    detailedBreakdown
+  };
+}

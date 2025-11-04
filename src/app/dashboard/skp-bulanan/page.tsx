@@ -15,7 +15,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { toast } from "sonner"
 import { Edit, Trash2, Brain, Loader2, Calendar, AlertTriangle } from "lucide-react"
 import { calculateDeadline, formatDeadline, isDeadlinePassed, getDaysUntilDeadline, isSubmissionLate } from "@/lib/deadline-utils"
-import { calculateTukinScore, calculateAverageTukinScore, generateSubmissionAnalysis, generateDeepAnalysis } from '@/lib/tukin-scoring';
+import { calculateTukinScore, calculateAverageTukinScore, generateSubmissionAnalysis, generateDeepAnalysis, calculateMonthlySkpScore } from '@/lib/tukin-scoring';
 
 interface SkpMonthlyEntry {
   id: string
@@ -151,6 +151,10 @@ export default function SkpBulananPage() {
   const [deepAnalysis, setDeepAnalysis] = useState<any>(null)
   const [isGeneratingDeepAnalysis, setIsGeneratingDeepAnalysis] = useState(false)
   const [showDeepAnalysis, setShowDeepAnalysis] = useState(false)
+  const [monthlySkpScore, setMonthlySkpScore] = useState<ReturnType<typeof calculateMonthlySkpScore> | null>(null)
+  const [isCalculatingMonthlyScore, setIsCalculatingMonthlyScore] = useState(false)
+  const [showMonthlyScore, setShowMonthlyScore] = useState(false)
+  const [aiAnalysisScore, setAiAnalysisScore] = useState(75) // Default AI analysis score
   const [formData, setFormData] = useState({
     month: 9,
     year: 2025,
@@ -410,6 +414,115 @@ export default function SkpBulananPage() {
     }
   }
 
+  // Calculate AI score based on current data
+  const calculateAiScoreFromData = (): number => {
+    if (entries.length === 0) return 75 // Default neutral score for no data
+    
+    // Calculate submission performance metrics
+    const submittedEntries = entries.filter(entry => entry.supporting_data_submission_date).length
+    const submissionRate = (submittedEntries / entries.length) * 100
+    
+    // Calculate on-time submission rate
+    const onTimeEntries = entries.filter(entry => {
+      if (!entry.supporting_data_submission_date) return false
+      const submissionDate = new Date(entry.supporting_data_submission_date)
+      const deadline = entry.deadline || calculateDeadline(entry.month, entry.year)
+      return submissionDate <= deadline
+    }).length
+    
+    const onTimeRate = (onTimeEntries / entries.length) * 100
+    
+    // Calculate completion quality
+    const completedEntries = entries.filter(entry => 
+      entry.target_realization && entry.target_realization.length > 10
+    ).length
+    const completionRate = (completedEntries / entries.length) * 100
+    
+    // Calculate behavior quality if available
+    let behaviorScore = 3 // Default neutral behavior score
+    if (behaviors.length > 0) {
+      behaviorScore = behaviors.reduce((sum, behavior) => {
+        return sum + (behavior.assessment_score || 3)
+      }, 0) / behaviors.length
+    }
+    
+    // Calculate base AI score using weighted formula
+    let baseScore = 75
+    
+    // Submission rate weight: 40%
+    if (submissionRate >= 95) baseScore += 10
+    else if (submissionRate >= 90) baseScore += 8
+    else if (submissionRate >= 85) baseScore += 6
+    else if (submissionRate >= 80) baseScore += 4
+    else if (submissionRate >= 75) baseScore += 2
+    else if (submissionRate >= 70) baseScore += 0
+    else if (submissionRate >= 60) baseScore -= 3
+    else baseScore -= 5
+    
+    // On-time rate weight: 30%
+    if (onTimeRate >= 90) baseScore += 8
+    else if (onTimeRate >= 80) baseScore += 6
+    else if (onTimeRate >= 70) baseScore += 4
+    else if (onTimeRate >= 60) baseScore += 2
+    else if (onTimeRate >= 50) baseScore += 0
+    else if (onTimeRate >= 40) baseScore -= 3
+    else baseScore -= 5
+    
+    // Completion quality weight: 20%
+    if (completionRate >= 95) baseScore += 5
+    else if (completionRate >= 90) baseScore += 4
+    else if (completionRate >= 85) baseScore += 3
+    else if (completionRate >= 80) baseScore += 2
+    else if (completionRate >= 75) baseScore += 1
+    else if (completionRate >= 70) baseScore += 0
+    else if (completionRate >= 60) baseScore -= 2
+    else baseScore -= 3
+    
+    // Behavior score weight: 10%
+    const behaviorAdjustment = (behaviorScore - 3) * 3.33 // Scale 1-5 to -6.66 to +6.66
+    baseScore += behaviorAdjustment
+    
+    // Ensure score stays within reasonable bounds (50-100)
+    return Math.max(50, Math.min(100, Math.round(baseScore)))
+  }
+
+  // Calculate monthly SKP score
+  const calculateMonthlySkpScoreDisplay = async () => {
+    setIsCalculatingMonthlyScore(true)
+    
+    try {
+      // Simulate AI processing time
+      await new Promise(resolve => setTimeout(resolve, 1500))
+      
+      // Calculate AI score based on actual data using objective formula
+      const calculatedAiScore = calculateAiScoreFromData()
+      
+      // Update the AI analysis score with calculated value
+      setAiAnalysisScore(calculatedAiScore)
+      
+      // Calculate comprehensive monthly SKP score
+      const monthlyScore = calculateMonthlySkpScore(
+        entries,
+        behaviors,
+        calculatedAiScore,
+        selectedMonth,
+        selectedYear
+      )
+      
+      setMonthlySkpScore(monthlyScore)
+      setShowMonthlyScore(true)
+      
+      console.log('Monthly SKP Score:', monthlyScore)
+      console.log('Calculated AI Score:', calculatedAiScore)
+      toast.success('Perhitungan Nilai SKP Bulanan berhasil dilakukan')
+    } catch (error) {
+      console.error('Error calculating monthly SKP score:', error)
+      toast.error('Gagal menghitung nilai SKP bulanan')
+    } finally {
+      setIsCalculatingMonthlyScore(false)
+    }
+  }
+
   // Generate AI analysis for Perilaku (Behavior) section
   const generatePerilakuAnalysis = async () => {
     setIsGeneratingPerilakuAnalysis(true)
@@ -550,6 +663,55 @@ export default function SkpBulananPage() {
         const data = await response.json()
         setAiSummary(data.data)
         setShowAiSummary(true)
+        
+        // Calculate AI analysis score based on actual performance data
+        if (data.data && data.data.summary) {
+          // Calculate based on actual data instead of just text analysis
+          let aiScore = 75 // Default neutral score
+          
+          // Calculate submission performance
+          if (entries.length > 0) {
+            const submittedEntries = entries.filter(entry => entry.supporting_data_submission_date).length
+            const submissionRate = (submittedEntries / entries.length) * 100
+            
+            // Calculate on-time submission rate
+            const onTimeEntries = entries.filter(entry => {
+              if (!entry.supporting_data_submission_date) return false
+              const submissionDate = new Date(entry.supporting_data_submission_date)
+              const deadline = entry.deadline || calculateDeadline(entry.month, entry.year)
+              return submissionDate <= deadline
+            }).length
+            
+            const onTimeRate = (onTimeEntries / entries.length) * 100
+            
+            // Base score on submission performance
+            if (submissionRate >= 95 && onTimeRate >= 90) aiScore = 95
+            else if (submissionRate >= 90 && onTimeRate >= 80) aiScore = 90
+            else if (submissionRate >= 85 && onTimeRate >= 70) aiScore = 85
+            else if (submissionRate >= 80 && onTimeRate >= 60) aiScore = 80
+            else if (submissionRate >= 75 && onTimeRate >= 50) aiScore = 75
+            else if (submissionRate >= 70) aiScore = 70
+            else aiScore = 65
+            
+            // Adjust based on summary content as secondary factor
+            const summary = data.data.summary
+            if (summary.includes('sangat baik') || summary.includes('di atas ekspektasi')) {
+              aiScore = Math.min(95, aiScore + 5)
+            } else if (summary.includes('baik') || summary.includes('sesuai ekspektasi')) {
+              aiScore = Math.min(90, aiScore + 3)
+            } else if (summary.includes('perlu perbaikan') || summary.includes('di bawah ekspektasi')) {
+              aiScore = Math.max(60, aiScore - 5)
+            } else if (summary.includes('kurang') || summary.includes('misconduct')) {
+              aiScore = Math.max(50, aiScore - 10)
+            }
+            
+            // Ensure score stays within reasonable bounds
+            aiScore = Math.max(50, Math.min(95, aiScore))
+          }
+          
+          setAiAnalysisScore(aiScore)
+        }
+        
         toast.success("Ringkasan AI berhasil dibuat")
       } else {
         const error = await response.json()
@@ -574,7 +736,7 @@ export default function SkpBulananPage() {
         </div>
         
         <div className="flex items-center space-x-2">
-          <Button 
+          {/* <Button 
             variant="outline" 
             onClick={generateAiSummary}
             disabled={isGeneratingSummary || entries.length === 0}
@@ -585,7 +747,7 @@ export default function SkpBulananPage() {
               <Brain className="h-4 w-4 mr-2" />
             )}
             {isGeneratingSummary ? "Membuat Ringkasan..." : "Ringkasan AI"}
-          </Button>
+          </Button> */}
           
           <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
             <DialogContent className="max-w-2xl">
@@ -874,6 +1036,180 @@ export default function SkpBulananPage() {
         </Card>
       )}
 
+      {/* Monthly SKP Score Calculation Card */}
+      <Card className="border-green-200 bg-green-50/50">
+        <CardHeader>
+          <div className="flex items-center justify-between">
+            <div className="flex items-center space-x-2">
+              <Brain className="h-5 w-5 text-green-600" />
+              <CardTitle className="text-green-900">Perhitungan Nilai SKP Bulanan</CardTitle>
+            </div>
+            <div className="flex items-center space-x-2">
+              <Button 
+                onClick={calculateMonthlySkpScoreDisplay}
+                disabled={isCalculatingMonthlyScore || entries.length === 0 || behaviors.length === 0}
+                variant="outline"
+                size="sm"
+              >
+                {isCalculatingMonthlyScore ? (
+                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                ) : (
+                  <Brain className="h-4 w-4 mr-2" />
+                )}
+                {isCalculatingMonthlyScore ? "Menghitung..." : "Hitung Nilai SKP"}
+              </Button>
+              {showMonthlyScore && (
+                <Button 
+                  variant="ghost" 
+                  size="sm" 
+                  onClick={() => setShowMonthlyScore(false)}
+                >
+                  ×
+                </Button>
+              )}
+            </div>
+          </div>
+          <CardDescription className="text-green-700">
+                Perhitungan Nilai SKP Bulanan berdasarkan Unsur Prestasi Kerja (SKP + Ketepatan Waktu Laporan)
+               
+              </CardDescription>
+        </CardHeader>
+        {showMonthlyScore && monthlySkpScore && (
+          <CardContent className="space-y-6">
+            {/* Summary Cards */}
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+              <Card className="p-4 border-purple-200 bg-purple-50">
+                <div className="text-center">
+                  <div className="text-3xl font-bold text-purple-600">{monthlySkpScore.finalTukin.tukinPercentage}%</div>
+                  <div className="text-sm text-gray-600">Persentase Tukin</div>
+                  <div className="text-xs text-purple-600 mt-1">
+                    SKP: {monthlySkpScore.workResult.workResultRating}
+                  </div>
+                </div>
+              </Card>
+              <Card className="p-4 border-orange-200 bg-orange-50">
+                <div className="text-center">
+                  <div className="text-3xl font-bold text-orange-600">{monthlySkpScore.timeliness.averageScore}%</div>
+                  <div className="text-sm text-gray-600">Skor Ketepatan Waktu</div>
+                  <div className="text-xs text-orange-600 mt-1">
+                    {monthlySkpScore.timeliness.submittedEntries}/{monthlySkpScore.timeliness.totalEntries} laporan
+                  </div>
+                </div>
+              </Card>
+              <Card className="p-4 border-green-200 bg-green-50">
+                <div className="text-center">
+                  <div className="text-3xl font-bold text-green-600">{monthlySkpScore.finalTukin.tukinPercentage + monthlySkpScore.timeliness.averageScore}%</div>
+                  <div className="text-sm text-gray-600">Skor Total</div>
+                  <div className="text-xs text-green-600 mt-1">
+                    Tukin + Ketepatan Waktu
+                  </div>
+                </div>
+              </Card>
+            </div>
+
+            {/* Insights and Development Recommendations */}
+            {monthlySkpScore && (
+              <div className="space-y-6 mt-6">
+                {/* Development Recommendations */}
+                <Card className="border-green-200 bg-green-50">
+                  <CardHeader>
+                    <CardTitle className="text-green-800 flex items-center gap-2">
+                      <Brain className="h-5 w-5" />
+                      Rekomendasi Pengembangan Kinerja
+                    </CardTitle>
+                    <CardDescription className="text-green-700">
+                      Strategi untuk meningkatkan performa SKP bulanan berikutnya
+                    </CardDescription>
+                  </CardHeader>
+                  <CardContent className="space-y-4">
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                      <div className="space-y-2">
+                        <h4 className="font-semibold text-green-800 flex items-center gap-2">
+                          <span className="bg-green-100 px-2 py-1 rounded text-xs">Jangka Pendek</span>
+                        </h4>
+                        <ul className="space-y-1 text-sm">
+                          {monthlySkpScore.timeliness.averageScore < 80 && (
+                            <>
+                              <li className="flex items-start gap-2">
+                                <span className="text-green-500">→</span>
+                                <span>Buat pengingat deadline 3 hari sebelum batas waktu</span>
+                              </li>
+                              <li className="flex items-start gap-2">
+                                <span className="text-green-500">→</span>
+                                <span>Siapkan template laporan untuk mempercepat proses</span>
+                              </li>
+                            </>
+                          )}
+                          {monthlySkpScore.workResult.workResultRating === 'Cukup' && (
+                            <li className="flex items-start gap-2">
+                              <span className="text-green-500">→</span>
+                              <span>Review ulang target yang belum tercapai dan buat action plan korektif</span>
+                            </li>
+                          )}
+                          <li className="flex items-start gap-2">
+                            <span className="text-green-500">→</span>
+                            <span>Lakukan evaluasi mingguan terhadap progress pencapaian target</span>
+                          </li>
+                        </ul>
+                      </div>
+                      <div className="space-y-2">
+                        <h4 className="font-semibold text-green-800 flex items-center gap-2">
+                          <span className="bg-yellow-100 px-2 py-1 rounded text-xs">Jangka Menengah</span>
+                        </h4>
+                        <ul className="space-y-1 text-sm">
+                          <li className="flex items-start gap-2">
+                            <span className="text-green-500">→</span>
+                            <span>Ikuti pelatihan pengelolaan waktu dan manajemen tugas</span>
+                          </li>
+                          <li className="flex items-start gap-2">
+                            <span className="text-green-500">→</span>
+                            <span>Kembangkan sistem dokumentasi yang lebih efisien</span>
+                          </li>
+                          <li className="flex items-start gap-2">
+                            <span className="text-green-500">→</span>
+                            <span>Bangun komunikasi yang lebih intensif dengan atasan untuk feedback berkala</span>
+                          </li>
+                          {monthlySkpScore.timeliness.submittedEntries < monthlySkpScore.timeliness.totalEntries && (
+                            <li className="flex items-start gap-2">
+                              <span className="text-green-500">→</span>
+                              <span>Identifikasi penyebab keterlambatan dan buat SOP pengumpulan data</span>
+                            </li>
+                          )}
+                        </ul>
+                      </div>
+                      <div className="space-y-2">
+                        <h4 className="font-semibold text-green-800 flex items-center gap-2">
+                          <span className="bg-blue-100 px-2 py-1 rounded text-xs">Jangka Panjang</span>
+                        </h4>
+                        <ul className="space-y-1 text-sm">
+                          <li className="flex items-start gap-2">
+                            <span className="text-green-500">→</span>
+                            <span>Targetkan peningkatan skor SKP ke level berikutnya dalam 3-6 bulan</span>
+                          </li>
+                          <li className="flex items-start gap-2">
+                            <span className="text-green-500">→</span>
+                            <span>Kembangkan kompetensi teknis sesuai bidang pekerjaan</span>
+                          </li>
+                          <li className="flex items-start gap-2">
+                            <span className="text-green-500">→</span>
+                            <span>bangun portofolio pencapaian untuk penilaian kinerja tahunan</span>
+                          </li>
+                          <li className="flex items-start gap-2">
+                            <span className="text-green-500">→</span>
+                            <span>Rencanakan program pengembangan diri yang terstruktur</span>
+                          </li>
+                        </ul>
+                      </div>
+                    </div>
+                  </CardContent>
+                </Card>
+              </div>
+            )}
+
+          </CardContent>
+        )}
+      </Card>
+
       {/* Tabbed Interface */}
       <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
         <TabsList className="grid w-full grid-cols-2">
@@ -1025,12 +1361,6 @@ export default function SkpBulananPage() {
                                               <span className="text-xs font-medium">Tepat Waktu</span>
                                             </div>
                                           )}
-                                          <Badge 
-                                            variant={scoreResult.tukinScore >= 8 ? "default" : scoreResult.tukinScore >= 6 ? "secondary" : "destructive"}
-                                            className="text-xs w-fit"
-                                          >
-                                            Skor: {scoreResult.tukinScore}/10
-                                          </Badge>
                                         </div>
                                       );
                                     })()}
@@ -1078,117 +1408,6 @@ export default function SkpBulananPage() {
                 </div>
               )}
               
-              {/* Tukin Scoring Summary for Kinerja */}
-              {entries.length > 0 && (
-                <div className="mt-6 space-y-4">
-                  <div className="flex items-center justify-between">
-                    <h4 className="text-lg font-semibold">Perhitungan Skor Tukin - Ketepatan Waktu Pengumpulan</h4>
-                    <div className="flex gap-2">
-                      <Button
-                        onClick={generateKinerjaAnalysis}
-                        disabled={isGeneratingKinerjaAnalysis}
-                        variant="outline"
-                        size="sm"
-                      >
-                        {isGeneratingKinerjaAnalysis ? (
-                          <>
-                            <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                            Menganalisis...
-                          </>
-                        ) : (
-                          <>
-                            <Brain className="mr-2 h-4 w-4" />
-                            Analisis AI
-                          </>
-                        )}
-                      </Button>
-                      {/* Deep Analysis functionality removed as requested */}
-                    </div>
-                  </div>
-                  
-                  {(() => {
-                    const stats = calculateAverageTukinScore(entries);
-                    return (
-                      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                        <Card className="p-4">
-                          <div className="text-2xl font-bold text-blue-600">{stats.averageScore}/10</div>
-                          <div className="text-sm text-gray-600">Rata-rata Skor Tukin</div>
-                        </Card>
-                        <Card className="p-4">
-                          <div className="text-2xl font-bold text-green-600">{stats.submittedEntries}/{stats.totalEntries}</div>
-                          <div className="text-sm text-gray-600">Laporan Dikumpulkan</div>
-                        </Card>
-                        <Card className="p-4">
-                          <div className="text-2xl font-bold text-orange-600">{stats.onTimeEntries}</div>
-                          <div className="text-sm text-gray-600">Tepat Waktu</div>
-                        </Card>
-                        <Card className="p-4">
-                          <div className="text-2xl font-bold text-red-600">{stats.lateEntries}</div>
-                          <div className="text-sm text-gray-600">Terlambat</div>
-                        </Card>
-                      </div>
-                    );
-                  })()}
-                  
-                  {/* AI Analysis Section */}
-                  {showKinerjaAnalysis && (
-                    <div className="space-y-6">
-                      {/* Basic Analysis */}
-                      <Card className="border-blue-200 bg-blue-50">
-                        <CardHeader>
-                          <CardTitle className="flex items-center gap-2">
-                            <Brain className="h-5 w-5 text-blue-600" />
-                            Analisis AI - Pola Waktu Pengumpulan & Rekomendasi
-                          </CardTitle>
-                        </CardHeader>
-                        <CardContent>
-                          {(() => {
-                            const analysis = generateSubmissionAnalysis(entries);
-                            return (
-                              <div className="space-y-4">
-                                <div>
-                                  <h5 className="font-semibold text-blue-800 mb-2">Pola Pengumpulan:</h5>
-                                  <p className="text-blue-700">{analysis.pattern}</p>
-                                </div>
-                                
-                                <div>
-                                  <h5 className="font-semibold text-blue-800 mb-2">Wawasan:</h5>
-                                  <ul className="list-disc list-inside space-y-1">
-                                    {analysis.insights.map((insight, index) => (
-                                      <li key={index} className="text-blue-700">{insight}</li>
-                                    ))}
-                                  </ul>
-                                </div>
-                                
-                                <div>
-                                  <h5 className="font-semibold text-blue-800 mb-2">Rekomendasi untuk Meningkatkan Kinerja:</h5>
-                                  <ul className="list-disc list-inside space-y-1">
-                                    {analysis.recommendations.map((rec, index) => (
-                                      <li key={index} className="text-blue-700">{rec}</li>
-                                    ))}
-                                  </ul>
-                                </div>
-                                
-                                <div className="flex items-center gap-2 pt-2 border-t border-blue-200">
-                                  <span className="font-semibold text-blue-800">Tren:</span>
-                                  <Badge 
-                                    variant={analysis.trend === 'Sangat Baik' ? 'default' : 
-                                            analysis.trend === 'Baik' ? 'secondary' : 'destructive'}
-                                  >
-                                    {analysis.trend}
-                                  </Badge>
-                                </div>
-                              </div>
-                            );
-                          })()}
-                        </CardContent>
-                      </Card>
-
-                      {/* Deep Analysis functionality removed as requested */}
-                    </div>
-                  )}
-                </div>
-              )}
             </CardContent>
           </Card>
         </TabsContent>
