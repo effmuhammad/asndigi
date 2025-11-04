@@ -13,8 +13,9 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
-import { ClipboardCheck, Plus, Eye, Send, CheckCircle, XCircle, Clock, FileText, Calendar, User, AlertCircle, Loader2 } from "lucide-react"
+import { ClipboardCheck, Plus, Eye, Send, CheckCircle, XCircle, Clock, FileText, Calendar, User, AlertCircle, Loader2, TrendingUp, Award, Target, Lightbulb, Brain } from "lucide-react"
 import { toast } from "sonner"
+import { performAIAnalysis, type AIAnalysisResult, type MonthlyPerformance } from "@/lib/ai-performance-utils"
 
 interface AttendanceSummary {
   totalDays: number
@@ -54,6 +55,8 @@ interface AnnualPerformanceReport {
     nip: string
     position: string
     unit: string
+    employee_type?: "STRUKTURAL" | "FUNGSIONAL" | "PELAYANAN"
+    base_pak_score?: number // For JF (Jabatan Fungsional)
   }
   supervisor_evaluation?: {
     id: string
@@ -80,6 +83,11 @@ interface AnnualPerformanceReport {
       nip: string
     }
   }
+  // AI Analysis Results
+  ai_analysis?: AIAnalysisResult
+  monthly_performance?: MonthlyPerformance[]
+  months_active?: number
+  pak_score?: number // For JF only
 }
 
 export default function LaporanKinerjaPage() {
@@ -98,6 +106,118 @@ export default function LaporanKinerjaPage() {
     improvement_plan: ""
   })
 
+  // Data Tukin bulanan untuk tampilan
+  const monthlyTukinData = [
+    { month: 1, skp: 100, presensi: 98, tukin: 98.8, predicate: "SANGAT_BAIK" },
+    { month: 2, skp: 100, presensi: 100, tukin: 100.0, predicate: "SANGAT_BAIK" },
+    { month: 3, skp: 98, presensi: 100, tukin: 98.8, predicate: "SANGAT_BAIK" },
+    { month: 4, skp: 100, presensi: 100, tukin: 100.0, predicate: "SANGAT_BAIK" },
+    { month: 5, skp: 100, presensi: 98, tukin: 98.8, predicate: "SANGAT_BAIK" },
+    { month: 6, skp: 100, presensi: 100, tukin: 100.0, predicate: "SANGAT_BAIK" },
+    { month: 7, skp: 98, presensi: 100, tukin: 98.8, predicate: "SANGAT_BAIK" },
+    { month: 8, skp: 100, presensi: 100, tukin: 100.0, predicate: "SANGAT_BAIK" },
+    { month: 9, skp: 96, presensi: 94, tukin: 95.2, predicate: "BAIK" }
+  ]
+
+  // Generate dummy data for preview
+  const generateDummyData = (): AnnualPerformanceReport[] => {
+    // Data bulanan dengan perhitungan Tukin (SKP 60% + Presensi 40%)
+    const monthlyTukinData = [
+      { month: 1, skp: 100, presensi: 98, tukin: 98.8, predicate: "SANGAT_BAIK", work_rating: "DIATAS_EKSPEKTASI", behavior_rating: "DIATAS_EKSPEKTASI" },
+      { month: 2, skp: 100, presensi: 100, tukin: 100.0, predicate: "SANGAT_BAIK", work_rating: "DIATAS_EKSPEKTASI", behavior_rating: "DIATAS_EKSPEKTASI" },
+      { month: 3, skp: 98, presensi: 100, tukin: 98.8, predicate: "SANGAT_BAIK", work_rating: "DIATAS_EKSPEKTASI", behavior_rating: "SESUAI_EKSPEKTASI" },
+      { month: 4, skp: 100, presensi: 100, tukin: 100.0, predicate: "SANGAT_BAIK", work_rating: "DIATAS_EKSPEKTASI", behavior_rating: "DIATAS_EKSPEKTASI" },
+      { month: 5, skp: 100, presensi: 98, tukin: 98.8, predicate: "SANGAT_BAIK", work_rating: "DIATAS_EKSPEKTASI", behavior_rating: "SESUAI_EKSPEKTASI" },
+      { month: 6, skp: 100, presensi: 100, tukin: 100.0, predicate: "SANGAT_BAIK", work_rating: "DIATAS_EKSPEKTASI", behavior_rating: "DIATAS_EKSPEKTASI" },
+      { month: 7, skp: 98, presensi: 100, tukin: 98.8, predicate: "SANGAT_BAIK", work_rating: "SESUAI_EKSPEKTASI", behavior_rating: "SESUAI_EKSPEKTASI" },
+      { month: 8, skp: 100, presensi: 100, tukin: 100.0, predicate: "SANGAT_BAIK", work_rating: "DIATAS_EKSPEKTASI", behavior_rating: "DIATAS_EKSPEKTASI" },
+      { month: 9, skp: 96, presensi: 94, tukin: 95.2, predicate: "BAIK", work_rating: "SESUAI_EKSPEKTASI", behavior_rating: "SESUAI_EKSPEKTASI" }
+    ]
+
+    const dummyMonthlyData: MonthlyPerformance[] = monthlyTukinData.map(data => ({
+      month: data.month,
+      predicate: data.predicate as any,
+      work_rating: data.work_rating as any,
+      behavior_rating: data.behavior_rating as any
+    }))
+
+    const aiAnalysis = performAIAnalysis(
+      dummyMonthlyData.slice(0, 9), // Hanya 9 bulan (Januari-September)
+      97.9, // attendance percentage
+      94.4, // skp percentage
+      9,    // months active (September)
+      100,  // base PAK score for JF
+      "Jabatan Fungsional" // position type
+    )
+
+    return [{
+      id: "dummy-1",
+      user_id: "user-123",
+      year: 2024,
+      attendance_summary: {
+        totalDays: 195, // Januari-September (±21.67 hari/bulan x 9 bulan)
+        presentDays: 191,
+        percentage: 97.9
+      },
+      skp_summary: {
+        totalEntries: 18, // Rata-rata 2 entri per bulan x 9 bulan
+        completedEntries: 17,
+        percentage: 94.4
+      },
+      work_result_rating: "DIATAS_EKSPEKTASI",
+      behavior_rating: "DIATAS_EKSPEKTASI",
+      performance_predicate: "BAIK",
+      ai_generated_summary: "Kinerja Januari-September 2024 menunjukkan hasil yang sangat baik dengan 7 bulan mencapai 100% dan 2 bulan di atas 95% untuk perhitungan Tukin (SKP 60% + Presensi 40%). Konsistensi tinggi ini menunjukkan dedikasi dan profesionalisme yang luar biasa.",
+      self_assessment: "Saya merasa telah bekerja keras sepanjang tahun dengan fokus pada peningkatan kualitas dan inovasi dalam setiap tugas yang diberikan.",
+      achievements: "1. Menyelesaikan proyek digitalisasi 3 bulan lebih cepat dari target\n2. Mendapatkan sertifikasi kompetensi profesional\n3. Menjadi mentor untuk 3 staf baru\n4. Menerapkan sistem baru yang meningkatkan efisiensi 25%",
+      challenges: "1. Adaptasi terhadap sistem baru memerlukan waktu pembelajaran\n2. Beban kerja meningkat 30% namun tetap dikelola dengan baik\n3. Koordinasi dengan tim lintas unit yang memerlukan pendekatan khusus",
+      improvement_plan: "1. Mengikuti pelatihan kepemimpinan untuk kesiapan promosi\n2. Meningkatkan kemampuan analisis data untuk pengambilan keputusan\n3. Mengembangkan jaringan profesional dalam organisasi",
+      status: "APPROVED",
+      submitted_at: "2024-12-15T10:30:00Z",
+      approved_at: "2024-12-20T14:45:00Z",
+      created_at: "2024-12-10T08:00:00Z",
+      updated_at: "2024-12-20T14:45:00Z",
+      user: {
+        id: "user-123",
+        name: "Dr. Andi Wijaya, M.Si",
+        email: "andi.wijaya@asn.go.id",
+        nip: "198503152009011002",
+        position: "Jabatan Fungsional Ahli Pertama",
+        unit: "Bidang Pengembangan Sistem Informasi",
+        employee_type: "FUNGSIONAL",
+        base_pak_score: 100
+      },
+      supervisor_evaluation: {
+        id: "eval-1",
+        work_quality_score: 4.5,
+        work_quantity_score: 4.3,
+        punctuality_score: 4.7,
+        cooperation_score: 4.4,
+        initiative_score: 4.6,
+        overall_rating: 4.5,
+        supervisor_comments: "Kinerja yang sangat memuaskan dengan konsistensi tinggi sepanjang tahun. Menunjukkan kemampuan adaptasi dan inovasi yang baik.",
+        recommendations: "Pertimbangkan untuk promosi ke jenjang berikutnya dan diberikan tugas-tugas strategis organisasi.",
+        development_areas: "Pengembangan kepemimpinan dan strategi organisasi",
+        strengths: "Komitmen tinggi, kemampuan analisis kuat, inovatif, dan teamwork yang baik",
+        supervisor: {
+          name: "Drs. Budi Santoso, M.M",
+          nip: "197812052006011005"
+        }
+      },
+      digital_signature: {
+        id: "sign-1",
+        signer: {
+          name: "Drs. Budi Santoso, M.M",
+          nip: "197812052006011005"
+        }
+      },
+      ai_analysis: aiAnalysis,
+      monthly_performance: dummyMonthlyData.slice(0, 9),
+      months_active: 9,
+      pak_score: aiAnalysis.pakConversion
+    }]
+  }
+
   // Fetch reports from API
   useEffect(() => {
     const fetchReports = async () => {
@@ -105,12 +225,19 @@ export default function LaporanKinerjaPage() {
       
       setIsLoading(true)
       try {
-        const response = await fetch(`/api/annual-performance-reports?year=${selectedYear}&user_id=${session.user.id}`)
-        if (!response.ok) {
-          throw new Error('Failed to fetch reports')
+        // For demo purposes, use dummy data for 2024
+        if (selectedYear === 2024) {
+          const dummyData = generateDummyData()
+          setReports(dummyData)
+        } else {
+          // Fallback to API for other years
+          const response = await fetch(`/api/annual-performance-reports?year=${selectedYear}&user_id=${session.user.id}`)
+          if (!response.ok) {
+            throw new Error('Failed to fetch reports')
+          }
+          const data = await response.json()
+          setReports(data.reports || [])
         }
-        const data = await response.json()
-        setReports(data.reports || [])
       } catch (error) {
         console.error('Error fetching reports:', error)
         toast.error('Gagal memuat laporan kinerja')
@@ -284,7 +411,7 @@ export default function LaporanKinerjaPage() {
                 Buat Laporan
               </Button>
             </DialogTrigger>
-            <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
+            <DialogContent className="overflow-y-auto">
               <DialogHeader>
                 <DialogTitle>Buat Laporan Kinerja Tahunan Baru</DialogTitle>
                 <DialogDescription>
@@ -422,6 +549,7 @@ export default function LaporanKinerjaPage() {
                   <TableHead>Rating Perilaku</TableHead>
                   <TableHead>Kehadiran</TableHead>
                   <TableHead>SKP</TableHead>
+                  <TableHead>Nilai Konversi PAK</TableHead>
                   <TableHead>Status</TableHead>
                   <TableHead>Aksi</TableHead>
                 </TableRow>
@@ -444,6 +572,16 @@ export default function LaporanKinerjaPage() {
                         <Progress value={report.skp_summary?.percentage || 0} className="w-16" />
                         <span className="text-sm">{(report.skp_summary?.percentage || 0).toFixed(1)}%</span>
                       </div>
+                    </TableCell>
+                    <TableCell>
+                      {report.user?.employee_type === "FUNGSIONAL" && report.pak_score ? (
+                        <div className="flex items-center gap-2">
+                          <Award className="w-4 h-4 text-blue-600" />
+                          <span className="font-medium text-blue-600">{report.pak_score.toFixed(2)}</span>
+                        </div>
+                      ) : (
+                        <span className="text-muted-foreground">-</span>
+                      )}
                     </TableCell>
                     <TableCell>
                       <div className="flex items-center gap-2">
@@ -481,7 +619,7 @@ export default function LaporanKinerjaPage() {
 
       {/* View Report Dialog */}
       <Dialog open={!!viewingReport} onOpenChange={() => setViewingReport(null)}>
-        <DialogContent className="max-w-6xl max-h-[90vh] overflow-y-auto">
+        <DialogContent className="w-[95vw] max-w-7xl max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>Detail Laporan Kinerja Tahunan {viewingReport?.year}</DialogTitle>
             <DialogDescription>
@@ -491,10 +629,11 @@ export default function LaporanKinerjaPage() {
           
           {viewingReport && (
             <Tabs defaultValue="overview" className="w-full">
-              <TabsList className="grid w-full grid-cols-4">
+              <TabsList className="grid w-full grid-cols-5">
                 <TabsTrigger value="overview">Ringkasan</TabsTrigger>
                 <TabsTrigger value="assessment">Penilaian Diri</TabsTrigger>
                 <TabsTrigger value="supervisor">Evaluasi Atasan</TabsTrigger>
+                <TabsTrigger value="ai-analysis">Analisis AI</TabsTrigger>
                 <TabsTrigger value="signature">Tanda Tangan</TabsTrigger>
               </TabsList>
               
@@ -605,6 +744,205 @@ export default function LaporanKinerjaPage() {
                     <CardContent>
                       <p className="text-sm leading-relaxed whitespace-pre-wrap">
                         {viewingReport.ai_generated_summary}
+                      </p>
+                    </CardContent>
+                  </Card>
+                )}
+              </TabsContent>
+
+              <TabsContent value="ai-analysis" className="space-y-6">
+                {viewingReport.ai_analysis ? (
+                  <div className="space-y-6">
+                    {/* Monthly Tukin Performance */}
+                    <Card>
+                      <CardHeader>
+                        <CardTitle className="text-lg flex items-center gap-2">
+                          <TrendingUp className="w-5 h-5 text-blue-600" />
+                          Perkembangan Tukin Bulanan (Januari-September 2024)
+                        </CardTitle>
+                        <CardDescription>
+                          Perhitungan: SKP (60%) + Presensi (40%)
+                        </CardDescription>
+                      </CardHeader>
+                      <CardContent>
+                        <div className="space-y-4">
+                          {monthlyTukinData.map((data) => (
+                            <div key={data.month} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
+                              <div className="flex items-center gap-3">
+                                <div className="w-8 h-8 bg-blue-100 rounded-full flex items-center justify-center">
+                                  <span className="text-sm font-medium text-blue-600">{data.month}</span>
+                                </div>
+                                <div>
+                                  <p className="font-medium">{new Date(2024, data.month - 1).toLocaleDateString('id-ID', { month: 'long' })}</p>
+                                  <p className="text-sm text-gray-500">SKP: {data.skp}% • Presensi: {data.presensi}%</p>
+                                </div>
+                              </div>
+                              <div className="text-right">
+                                <p className={`font-bold text-lg ${data.tukin === 100 ? 'text-green-600' : 'text-blue-600'}`}>
+                                  {data.tukin.toFixed(1)}%
+                                </p>
+                                <Badge variant={data.tukin === 100 ? "default" : "secondary"} className="text-xs">
+                                  {data.predicate.replace('_', ' ')}
+                                </Badge>
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                        <div className="mt-4 p-4 bg-green-50 rounded-lg border border-green-200">
+                          <div className="flex items-center gap-2 mb-2">
+                            <CheckCircle className="w-5 h-5 text-green-600" />
+                            <span className="font-medium text-green-800">Performa Unggulan</span>
+                          </div>
+                          <p className="text-sm text-green-700">
+                            • 7 bulan mencapai 100% (Jan, Feb, Apr, Mei, Jun, Agu)
+                            <br />• 2 bulan di atas 95% (Mar: 98.8%, Jul: 98.8%)
+                            <br />• 1 bulan di atas 90% (Sep: 95.2%)
+                          </p>
+                        </div>
+                      </CardContent>
+                    </Card>
+                    <Card>
+                      <CardHeader>
+                        <CardTitle className="text-lg flex items-center gap-2">
+                          <TrendingUp className="w-5 h-5 text-blue-600" />
+                          Ringkasan Kinerja AI
+                        </CardTitle>
+                      </CardHeader>
+                      <CardContent>
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
+                          <div className="flex justify-between">
+                            <span className="text-muted-foreground">Predikat Rata-rata:</span>
+                            <span className="font-medium">{viewingReport.ai_analysis.averagePredicate}</span>
+                          </div>
+                          <div className="flex justify-between">
+                            <span className="text-muted-foreground">Bulan Aktif:</span>
+                            <span className="font-medium">{viewingReport.months_active || 12} bulan</span>
+                          </div>
+                        </div>
+                        <p className="text-sm leading-relaxed whitespace-pre-wrap">
+                          {viewingReport.ai_analysis.summary}
+                        </p>
+                      </CardContent>
+                    </Card>
+
+                    {/* PAK Conversion for Functional Employees */}
+                    {viewingReport.user?.employee_type === "FUNGSIONAL" && viewingReport.pak_score && (
+                      <Card>
+                        <CardHeader>
+                          <CardTitle className="text-lg flex items-center gap-2">
+                            <Award className="w-5 h-5 text-green-600" />
+                            Nilai Konversi PAK (Jabatan Fungsional)
+                          </CardTitle>
+                        </CardHeader>
+                        <CardContent>
+                          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
+                            <div className="flex justify-between">
+                              <span className="text-muted-foreground">Nilai Konversi:</span>
+                              <span className="font-medium text-green-600">
+                                {viewingReport.ai_analysis.pakConversionRate}%
+                              </span>
+                            </div>
+                            <div className="flex justify-between">
+                              <span className="text-muted-foreground">Angka Kredit:</span>
+                              <span className="font-bold text-lg text-green-600">
+                                {viewingReport.pak_score.toFixed(2)}
+                              </span>
+                            </div>
+                          </div>
+                          <p className="text-sm text-muted-foreground">
+                            Perhitungan berdasarkan BKN No. 3 Tahun 2023 untuk jabatan fungsional
+                          </p>
+                        </CardContent>
+                      </Card>
+                    )}
+
+                    {/* Career Recommendations */}
+                    <Card>
+                      <CardHeader>
+                        <CardTitle className="text-lg flex items-center gap-2">
+                          <Target className="w-5 h-5 text-purple-600" />
+                          Rekomendasi Pengembangan Karier
+                        </CardTitle>
+                      </CardHeader>
+                      <CardContent>
+                        <p className="text-sm leading-relaxed whitespace-pre-wrap">
+                          {viewingReport.ai_analysis.careerRecommendation}
+                        </p>
+                      </CardContent>
+                    </Card>
+
+                    {/* Evidence-Based Policy */}
+                    <Card>
+                      <CardHeader>
+                        <CardTitle className="text-lg flex items-center gap-2">
+                          <Lightbulb className="w-5 h-5 text-orange-600" />
+                          Kebijakan Berbasis Bukti
+                        </CardTitle>
+                      </CardHeader>
+                      <CardContent>
+                        <p className="text-sm leading-relaxed whitespace-pre-wrap">
+                          {viewingReport.ai_analysis.evidenceBasedPolicy}
+                        </p>
+                      </CardContent>
+                    </Card>
+
+                    {/* Supervisor Feedback */}
+                    <Card>
+                      <CardHeader>
+                        <CardTitle className="text-lg flex items-center gap-2">
+                          <User className="w-5 h-5 text-indigo-600" />
+                          Feedback untuk Atasan
+                        </CardTitle>
+                      </CardHeader>
+                      <CardContent>
+                        <p className="text-sm leading-relaxed whitespace-pre-wrap">
+                          {viewingReport.ai_analysis.supervisorFeedback}
+                        </p>
+                      </CardContent>
+                    </Card>
+
+                    {/* Strengths and Development Areas */}
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                      <Card>
+                        <CardHeader>
+                          <CardTitle className="text-lg text-green-600">Kekuatan</CardTitle>
+                        </CardHeader>
+                        <CardContent>
+                          <ul className="space-y-2">
+                            {viewingReport.ai_analysis.strengths.map((strength, index) => (
+                              <li key={index} className="text-sm flex items-start gap-2">
+                                <span className="text-green-600 mt-1">•</span>
+                                <span>{strength}</span>
+                              </li>
+                            ))}
+                          </ul>
+                        </CardContent>
+                      </Card>
+
+                      <Card>
+                        <CardHeader>
+                          <CardTitle className="text-lg text-orange-600">Area Pengembangan</CardTitle>
+                        </CardHeader>
+                        <CardContent>
+                          <ul className="space-y-2">
+                            {viewingReport.ai_analysis.developmentAreas.map((area, index) => (
+                              <li key={index} className="text-sm flex items-start gap-2">
+                                <span className="text-orange-600 mt-1">•</span>
+                                <span>{area}</span>
+                              </li>
+                            ))}
+                          </ul>
+                        </CardContent>
+                      </Card>
+                    </div>
+                  </div>
+                ) : (
+                  <Card>
+                    <CardContent className="text-center py-8">
+                      <Brain className="w-12 h-12 text-muted-foreground mx-auto mb-4" />
+                      <h3 className="text-lg font-medium mb-2">Analisis AI Tidak Tersedia</h3>
+                      <p className="text-muted-foreground">
+                        Analisis AI belum tersedia untuk laporan ini
                       </p>
                     </CardContent>
                   </Card>
