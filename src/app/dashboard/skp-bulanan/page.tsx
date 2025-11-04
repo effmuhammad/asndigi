@@ -6,15 +6,16 @@ import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { Badge } from "@/components/ui/badge"
-import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog"
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { toast } from "sonner"
-import { Plus, Edit, Trash2, Brain, Loader2, Users, Calendar, AlertTriangle } from "lucide-react"
+import { Edit, Trash2, Brain, Loader2, Calendar, AlertTriangle } from "lucide-react"
 import { calculateDeadline, formatDeadline, isDeadlinePassed, getDaysUntilDeadline, isSubmissionLate } from "@/lib/deadline-utils"
+import { calculateTukinScore, calculateAverageTukinScore, generateSubmissionAnalysis, generateDeepAnalysis } from '@/lib/tukin-scoring';
 
 interface SkpMonthlyEntry {
   id: string
@@ -97,7 +98,7 @@ interface SkpSummaryResponse {
     challenges: string[]
     recommendations: string[]
   }
-  performance_score: number
+
 }
 
 interface AiSummaryData {
@@ -136,31 +137,102 @@ export default function SkpBulananPage() {
   const [isBehaviorDialogOpen, setIsBehaviorDialogOpen] = useState(false)
   const [editingEntry, setEditingEntry] = useState<SkpMonthlyEntry | null>(null)
   const [editingBehavior, setEditingBehavior] = useState<SkpMonthlyBehavior | null>(null)
-  const [selectedYear, setSelectedYear] = useState(new Date().getFullYear())
+  const [selectedYear, setSelectedYear] = useState(2025)
+  const [selectedMonth, setSelectedMonth] = useState(9)
   const [activeTab, setActiveTab] = useState("kinerja")
   const [aiSummary, setAiSummary] = useState<AiSummaryData | null>(null)
   const [isGeneratingSummary, setIsGeneratingSummary] = useState(false)
   const [showAiSummary, setShowAiSummary] = useState(false)
-  const [formData, setFormData] = useState<FormData>({
-    month: new Date().getMonth() + 1,
-    year: new Date().getFullYear(),
+  const [lastRefreshTime, setLastRefreshTime] = useState<Date | null>(null)
+  const [showKinerjaAnalysis, setShowKinerjaAnalysis] = useState(false)
+  const [showPerilakuAnalysis, setShowPerilakuAnalysis] = useState(false)
+  const [isGeneratingKinerjaAnalysis, setIsGeneratingKinerjaAnalysis] = useState(false)
+  const [isGeneratingPerilakuAnalysis, setIsGeneratingPerilakuAnalysis] = useState(false)
+  const [deepAnalysis, setDeepAnalysis] = useState<any>(null)
+  const [isGeneratingDeepAnalysis, setIsGeneratingDeepAnalysis] = useState(false)
+  const [showDeepAnalysis, setShowDeepAnalysis] = useState(false)
+  const [formData, setFormData] = useState({
+    month: 9,
+    year: 2025,
     indicator: "",
     actionPlan: "",
     targetRealization: "",
     supportingData: ""
   })
-  const [behaviorFormData, setBehaviorFormData] = useState<BehaviorFormData>({
-    month: new Date().getMonth() + 1,
-    year: new Date().getFullYear(),
+  const [behaviorFormData, setBehaviorFormData] = useState({
+    month: 9,
+    year: 2025,
     behavior: "",
     feedback: ""
   })
 
-  // Load entries from API
+  // Force refresh data (bypass cache)
+  const refreshData = () => {
+    if (session?.user?.id) {
+      const cacheKey = `${session.user.id}-${selectedYear}-${selectedMonth}`
+      // Clear cache for current user and year
+      setEntriesCache(prev => {
+        const newCache = { ...prev }
+        delete newCache[cacheKey]
+        return newCache
+      })
+      setBehaviorsCache(prev => {
+        const newCache = { ...prev }
+        delete newCache[cacheKey]
+        return newCache
+      })
+      // Reload data
+      loadEntries()
+      loadBehaviors()
+      // Update refresh timestamp
+      setLastRefreshTime(new Date())
+    }
+  }
+
+  // Cache for storing loaded data
+  const [entriesCache, setEntriesCache] = useState<{ [key: string]: SkpMonthlyEntry[] }>({})
+  const [behaviorsCache, setBehaviorsCache] = useState<{ [key: string]: SkpMonthlyBehavior[] }>({})
+
+  // Load data when session or year changes - with caching
+  useEffect(() => {
+    if (session?.user?.id) {
+      const cacheKey = `${session.user.id}-${selectedYear}-${selectedMonth}`
+      
+      // Check if we have cached data for this user and year
+      if (entriesCache[cacheKey]) {
+        setEntries(entriesCache[cacheKey])
+        setIsLoading(false)
+        // Set refresh time from cached data if not already set
+        if (!lastRefreshTime) {
+          setLastRefreshTime(new Date())
+        }
+      } else {
+        loadEntries()
+      }
+      
+      if (behaviorsCache[cacheKey]) {
+        setBehaviors(behaviorsCache[cacheKey])
+        setIsBehaviorLoading(false)
+        // Set refresh time from cached data if not already set
+        if (!lastRefreshTime) {
+          setLastRefreshTime(new Date())
+        }
+      } else {
+        loadBehaviors()
+      }
+    }
+  }, [selectedYear, selectedMonth, session?.user?.id]) // Add session.user.id to dependencies to ensure proper loading
+
+  // Load entries from API with caching
   const loadEntries = async () => {
+    if (!session?.user?.id) {
+      console.log("Session not available, skipping entries load")
+      return
+    }
+    
     try {
       setIsLoading(true)
-      const response = await fetch(`/api/skp/monthly?year=${selectedYear}`)
+      const response = await fetch(`/api/skp/monthly?year=${selectedYear}&month=${selectedMonth}`)
       if (response.ok) {
         const data = await response.json()
         // Add deadline calculation to each entry
@@ -168,7 +240,13 @@ export default function SkpBulananPage() {
           ...entry,
           deadline: calculateDeadline(entry.year, entry.month)
         }))
+        
+        // Cache the data
+        const cacheKey = `${session.user.id}-${selectedYear}-${selectedMonth}`
+        setEntriesCache(prev => ({ ...prev, [cacheKey]: entriesWithDeadlines }))
+        
         setEntries(entriesWithDeadlines)
+        setLastRefreshTime(new Date()) // Set refresh time when data is loaded
       } else {
         toast.error("Gagal memuat data SKP")
       }
@@ -180,14 +258,26 @@ export default function SkpBulananPage() {
     }
   }
 
-  // Load behaviors from API
+  // Load behaviors from API with caching
   const loadBehaviors = async () => {
+    if (!session?.user?.id) {
+      console.log("Session not available, skipping behaviors load")
+      return
+    }
+    
     try {
       setIsBehaviorLoading(true)
-      const response = await fetch(`/api/skp/monthly/behavior?year=${selectedYear}`)
+      const response = await fetch(`/api/skp/monthly/behavior?year=${selectedYear}&month=${selectedMonth}`)
       if (response.ok) {
         const data = await response.json()
-        setBehaviors(data.data || [])
+        const behaviorsData = data.data || []
+        
+        // Cache the data
+        const cacheKey = `${session.user.id}-${selectedYear}-${selectedMonth}`
+        setBehaviorsCache(prev => ({ ...prev, [cacheKey]: behaviorsData }))
+        
+        setBehaviors(behaviorsData)
+        setLastRefreshTime(new Date()) // Set refresh time when data is loaded
       } else {
         toast.error("Gagal memuat data perilaku")
       }
@@ -198,14 +288,6 @@ export default function SkpBulananPage() {
       setIsBehaviorLoading(false)
     }
   }
-
-  // Load data when session or year changes
-  useEffect(() => {
-    if (session) {
-      loadEntries()
-      loadBehaviors()
-    }
-  }, [session, selectedYear])
 
   // Handle form submission
   const handleSubmit = async (e: React.FormEvent) => {
@@ -234,7 +316,7 @@ export default function SkpBulananPage() {
         toast.success(editingEntry ? "SKP berhasil diperbarui" : "SKP berhasil ditambahkan")
         setIsDialogOpen(false)
         resetForm()
-        loadEntries()
+        refreshData() // Use refresh to clear cache and reload
       } else {
         const error = await response.json()
         toast.error(error.error || "Gagal menyimpan data")
@@ -256,7 +338,7 @@ export default function SkpBulananPage() {
 
       if (response.ok) {
         toast.success("SKP berhasil dihapus")
-        loadEntries()
+        refreshData() // Use refresh to clear cache and reload
       } else {
         toast.error("Gagal menghapus data")
       }
@@ -283,8 +365,8 @@ export default function SkpBulananPage() {
   // Reset form
   const resetForm = () => {
     setFormData({
-      month: new Date().getMonth() + 1,
-      year: new Date().getFullYear(),
+      month: 9,
+      year: 2025,
       indicator: "",
       actionPlan: "",
       targetRealization: "",
@@ -297,6 +379,71 @@ export default function SkpBulananPage() {
   const handleDialogClose = () => {
     setIsDialogOpen(false)
     resetForm()
+  }
+
+  // Generate AI analysis for Kinerja (Performance) section
+  const generateKinerjaAnalysis = async () => {
+    setIsGeneratingKinerjaAnalysis(true)
+    
+    try {
+      // Simulate AI analysis generation
+      await new Promise(resolve => setTimeout(resolve, 2000))
+      
+      // Use the new deep analysis function for comprehensive insights
+      const deepAnalysis = generateDeepAnalysis(entries, behaviors, selectedMonth, selectedYear)
+      setDeepAnalysis(deepAnalysis)
+      
+      // Also generate the basic analysis for backward compatibility
+      const basicAnalysis = generateSubmissionAnalysis(entries)
+      
+      console.log('Deep Kinerja Analysis:', deepAnalysis)
+      console.log('Basic Kinerja Analysis:', basicAnalysis)
+      
+      toast.success('Analisis AI mendalam untuk kinerja berhasil dibuat')
+      setShowKinerjaAnalysis(true)
+      setShowDeepAnalysis(true)
+    } catch (error) {
+      console.error('Error generating kinerja analysis:', error)
+      toast.error('Gagal membuat analisis kinerja')
+    } finally {
+      setIsGeneratingKinerjaAnalysis(false)
+    }
+  }
+
+  // Generate AI analysis for Perilaku (Behavior) section
+  const generatePerilakuAnalysis = async () => {
+    setIsGeneratingPerilakuAnalysis(true)
+    
+    try {
+      // Simulate AI analysis generation
+      await new Promise(resolve => setTimeout(resolve, 2000))
+      
+      // For behavior analysis, we'll use a simplified version
+      const analysis = {
+        pattern: `Analisis pola perilaku untuk ${behaviors.length} data perilaku`,
+        insights: [
+          `Total data perilaku: ${behaviors.length}`,
+          `Rentang waktu: ${MONTHS.find(m => m.value === selectedMonth)?.label} ${selectedYear}`,
+          'Analisis mendalam memerlukan data historis yang lebih lengkap'
+        ],
+        recommendations: [
+          'Lakukan evaluasi perilaku secara berkala',
+          'Dokumentasikan perubahan perilaku dari waktu ke waktu',
+          'Gunakan feedback untuk perbaikan berkelanjutan'
+        ],
+        trend: behaviors.length > 0 ? 'Data Tersedia' : 'Belum Ada Data'
+      }
+      
+      console.log('Perilaku Analysis:', analysis)
+      
+      toast.success('Analisis AI untuk perilaku berhasil dibuat')
+      setShowPerilakuAnalysis(true)
+    } catch (error) {
+      console.error('Error generating perilaku analysis:', error)
+      toast.error('Gagal membuat analisis perilaku')
+    } finally {
+      setIsGeneratingPerilakuAnalysis(false)
+    }
   }
 
   // Behavior form functions
@@ -324,7 +471,7 @@ export default function SkpBulananPage() {
         toast.success(editingBehavior ? "Data perilaku berhasil diperbarui" : "Data perilaku berhasil ditambahkan")
         setIsBehaviorDialogOpen(false)
         resetBehaviorForm()
-        loadBehaviors()
+        refreshData() // Use refresh to clear cache and reload
       } else {
         const error = await response.json()
         toast.error(error.error || "Gagal menyimpan data perilaku")
@@ -345,7 +492,7 @@ export default function SkpBulananPage() {
 
       if (response.ok) {
         toast.success("Data perilaku berhasil dihapus")
-        loadBehaviors()
+        refreshData() // Use refresh to clear cache and reload
       } else {
         toast.error("Gagal menghapus data perilaku")
       }
@@ -368,8 +515,8 @@ export default function SkpBulananPage() {
 
   const resetBehaviorForm = () => {
     setBehaviorFormData({
-      month: new Date().getMonth() + 1,
-      year: new Date().getFullYear(),
+      month: 9,
+      year: 2025,
       behavior: "",
       feedback: ""
     })
@@ -441,12 +588,6 @@ export default function SkpBulananPage() {
           </Button>
           
           <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
-            <DialogTrigger asChild>
-              <Button onClick={() => setIsDialogOpen(true)}>
-                <Plus className="h-4 w-4 mr-2" />
-                Tambah Kinerja
-              </Button>
-            </DialogTrigger>
             <DialogContent className="max-w-2xl">
               <DialogHeader>
                 <DialogTitle>
@@ -557,12 +698,6 @@ export default function SkpBulananPage() {
           </Dialog>
           
           <Dialog open={isBehaviorDialogOpen} onOpenChange={setIsBehaviorDialogOpen}>
-            <DialogTrigger asChild>
-              <Button variant="outline" onClick={() => setIsBehaviorDialogOpen(true)}>
-                <Users className="h-4 w-4 mr-2" />
-                Tambah Perilaku
-              </Button>
-            </DialogTrigger>
             <DialogContent className="max-w-2xl">
               <DialogHeader>
                 <DialogTitle>
@@ -668,8 +803,7 @@ export default function SkpBulananPage() {
               </Button>
             </div>
             <CardDescription className="text-blue-700">
-              {aiSummary.period} • {aiSummary.total_entries} entri SKP • 
-              Skor Kinerja: {aiSummary.summary.performance_score}/100
+              {aiSummary.period} • {aiSummary.total_entries} entri SKP
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-6">
@@ -731,21 +865,7 @@ export default function SkpBulananPage() {
               </div>
             </div>
 
-            {/* Performance Score */}
-            <div className="bg-white rounded-lg p-4 border border-blue-200">
-              <div className="flex items-center justify-between mb-2">
-                <span className="text-sm font-medium text-blue-900">Skor Kinerja</span>
-                <span className="text-lg font-bold text-blue-900">
-                  {aiSummary.summary.performance_score}/100
-                </span>
-              </div>
-              <div className="w-full bg-blue-100 rounded-full h-2">
-                <div 
-                  className="bg-blue-600 h-2 rounded-full transition-all duration-300" 
-                  style={{ width: `${aiSummary.summary.performance_score}%` }}
-                ></div>
-              </div>
-            </div>
+
 
             <div className="text-xs text-blue-600 text-right">
               Dibuat pada: {new Date(aiSummary.generated_at).toLocaleString('id-ID')}
@@ -769,7 +889,7 @@ export default function SkpBulananPage() {
                 <div>
                   <CardTitle>Tabel Rencana dan Realisasi</CardTitle>
                   <CardDescription>
-                    SKP tahun {selectedYear}
+                    SKP {MONTHS.find(m => m.value === selectedMonth)?.label} {selectedYear}
                   </CardDescription>
                 </div>
                 <div className="flex items-center space-x-4">
@@ -789,6 +909,22 @@ export default function SkpBulananPage() {
                       ))}
                     </SelectContent>
                   </Select>
+                  <Label htmlFor="monthFilter">Bulan:</Label>
+                  <Select
+                    value={selectedMonth.toString()}
+                    onValueChange={(value) => setSelectedMonth(parseInt(value))}
+                  >
+                    <SelectTrigger className="w-32">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {MONTHS.map((month) => (
+                        <SelectItem key={month.value} value={month.value.toString()}>
+                          {month.label}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
                 </div>
               </div>
             </CardHeader>
@@ -799,7 +935,7 @@ export default function SkpBulananPage() {
                 </div>
               ) : entries.length === 0 ? (
                 <div className="text-center py-8">
-                  <p className="text-muted-foreground">Belum ada data Sasaran Kinerja Pegawai untuk tahun {selectedYear}</p>
+                  <p className="text-muted-foreground">Belum ada data Sasaran Kinerja Pegawai untuk {MONTHS.find(m => m.value === selectedMonth)?.label} {selectedYear}</p>
                 </div>
               ) : (
                 <div className="overflow-x-auto">
@@ -874,17 +1010,30 @@ export default function SkpBulananPage() {
                                     <div className="text-sm">
                                       {new Date(entry.supporting_data_submission_date).toLocaleDateString('id-ID')}
                                     </div>
-                                    {entry.deadline && isSubmissionLate(entry.supporting_data_submission_date, entry.deadline) ? (
-                                      <div className="flex items-center gap-1 text-red-600">
-                                        <AlertTriangle className="h-3 w-3" />
-                                        <span className="text-xs font-medium">Terlewat</span>
-                                      </div>
-                                    ) : entry.deadline && (
-                                      <div className="flex items-center gap-1 text-green-600">
-                                        <Calendar className="h-3 w-3" />
-                                        <span className="text-xs font-medium">Tepat Waktu</span>
-                                      </div>
-                                    )}
+                                    {entry.deadline && (() => {
+                                      const scoreResult = calculateTukinScore(entry.supporting_data_submission_date, entry.deadline);
+                                      return (
+                                        <div className="flex flex-col gap-1">
+                                          {isSubmissionLate(entry.supporting_data_submission_date, entry.deadline) ? (
+                                            <div className="flex items-center gap-1 text-red-600">
+                                              <AlertTriangle className="h-3 w-3" />
+                                              <span className="text-xs font-medium">Terlewat</span>
+                                            </div>
+                                          ) : (
+                                            <div className="flex items-center gap-1 text-green-600">
+                                              <Calendar className="h-3 w-3" />
+                                              <span className="text-xs font-medium">Tepat Waktu</span>
+                                            </div>
+                                          )}
+                                          <Badge 
+                                            variant={scoreResult.tukinScore >= 8 ? "default" : scoreResult.tukinScore >= 6 ? "secondary" : "destructive"}
+                                            className="text-xs w-fit"
+                                          >
+                                            Skor: {scoreResult.tukinScore}/10
+                                          </Badge>
+                                        </div>
+                                      );
+                                    })()}
                                   </div>
                                 ) : (
                                   <span className="text-muted-foreground text-sm">-</span>
@@ -928,6 +1077,118 @@ export default function SkpBulananPage() {
                   </Table>
                 </div>
               )}
+              
+              {/* Tukin Scoring Summary for Kinerja */}
+              {entries.length > 0 && (
+                <div className="mt-6 space-y-4">
+                  <div className="flex items-center justify-between">
+                    <h4 className="text-lg font-semibold">Perhitungan Skor Tukin - Ketepatan Waktu Pengumpulan</h4>
+                    <div className="flex gap-2">
+                      <Button
+                        onClick={generateKinerjaAnalysis}
+                        disabled={isGeneratingKinerjaAnalysis}
+                        variant="outline"
+                        size="sm"
+                      >
+                        {isGeneratingKinerjaAnalysis ? (
+                          <>
+                            <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                            Menganalisis...
+                          </>
+                        ) : (
+                          <>
+                            <Brain className="mr-2 h-4 w-4" />
+                            Analisis AI
+                          </>
+                        )}
+                      </Button>
+                      {/* Deep Analysis functionality removed as requested */}
+                    </div>
+                  </div>
+                  
+                  {(() => {
+                    const stats = calculateAverageTukinScore(entries);
+                    return (
+                      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                        <Card className="p-4">
+                          <div className="text-2xl font-bold text-blue-600">{stats.averageScore}/10</div>
+                          <div className="text-sm text-gray-600">Rata-rata Skor Tukin</div>
+                        </Card>
+                        <Card className="p-4">
+                          <div className="text-2xl font-bold text-green-600">{stats.submittedEntries}/{stats.totalEntries}</div>
+                          <div className="text-sm text-gray-600">Laporan Dikumpulkan</div>
+                        </Card>
+                        <Card className="p-4">
+                          <div className="text-2xl font-bold text-orange-600">{stats.onTimeEntries}</div>
+                          <div className="text-sm text-gray-600">Tepat Waktu</div>
+                        </Card>
+                        <Card className="p-4">
+                          <div className="text-2xl font-bold text-red-600">{stats.lateEntries}</div>
+                          <div className="text-sm text-gray-600">Terlambat</div>
+                        </Card>
+                      </div>
+                    );
+                  })()}
+                  
+                  {/* AI Analysis Section */}
+                  {showKinerjaAnalysis && (
+                    <div className="space-y-6">
+                      {/* Basic Analysis */}
+                      <Card className="border-blue-200 bg-blue-50">
+                        <CardHeader>
+                          <CardTitle className="flex items-center gap-2">
+                            <Brain className="h-5 w-5 text-blue-600" />
+                            Analisis AI - Pola Waktu Pengumpulan & Rekomendasi
+                          </CardTitle>
+                        </CardHeader>
+                        <CardContent>
+                          {(() => {
+                            const analysis = generateSubmissionAnalysis(entries);
+                            return (
+                              <div className="space-y-4">
+                                <div>
+                                  <h5 className="font-semibold text-blue-800 mb-2">Pola Pengumpulan:</h5>
+                                  <p className="text-blue-700">{analysis.pattern}</p>
+                                </div>
+                                
+                                <div>
+                                  <h5 className="font-semibold text-blue-800 mb-2">Wawasan:</h5>
+                                  <ul className="list-disc list-inside space-y-1">
+                                    {analysis.insights.map((insight, index) => (
+                                      <li key={index} className="text-blue-700">{insight}</li>
+                                    ))}
+                                  </ul>
+                                </div>
+                                
+                                <div>
+                                  <h5 className="font-semibold text-blue-800 mb-2">Rekomendasi untuk Meningkatkan Kinerja:</h5>
+                                  <ul className="list-disc list-inside space-y-1">
+                                    {analysis.recommendations.map((rec, index) => (
+                                      <li key={index} className="text-blue-700">{rec}</li>
+                                    ))}
+                                  </ul>
+                                </div>
+                                
+                                <div className="flex items-center gap-2 pt-2 border-t border-blue-200">
+                                  <span className="font-semibold text-blue-800">Tren:</span>
+                                  <Badge 
+                                    variant={analysis.trend === 'Sangat Baik' ? 'default' : 
+                                            analysis.trend === 'Baik' ? 'secondary' : 'destructive'}
+                                  >
+                                    {analysis.trend}
+                                  </Badge>
+                                </div>
+                              </div>
+                            );
+                          })()}
+                        </CardContent>
+                      </Card>
+
+                      {/* Deep Analysis functionality removed as requested */}
+                    </div>
+                  )}
+                </div>
+              )}
             </CardContent>
           </Card>
         </TabsContent>
@@ -940,7 +1201,7 @@ export default function SkpBulananPage() {
                 <div>
                   <CardTitle>Tabel Data Perilaku</CardTitle>
                   <CardDescription>
-                    Data perilaku pegawai tahun {selectedYear}
+                    Data perilaku pegawai {MONTHS.find(m => m.value === selectedMonth)?.label} {selectedYear}
                   </CardDescription>
                 </div>
                 <div className="flex items-center space-x-4">
@@ -960,6 +1221,22 @@ export default function SkpBulananPage() {
                       ))}
                     </SelectContent>
                   </Select>
+                  <Label htmlFor="monthFilterBehavior">Bulan:</Label>
+                  <Select
+                    value={selectedMonth.toString()}
+                    onValueChange={(value) => setSelectedMonth(parseInt(value))}
+                  >
+                    <SelectTrigger className="w-32">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {MONTHS.map((month) => (
+                        <SelectItem key={month.value} value={month.value.toString()}>
+                          {month.label}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
                 </div>
               </div>
             </CardHeader>
@@ -970,7 +1247,7 @@ export default function SkpBulananPage() {
                 </div>
               ) : behaviors.length === 0 ? (
                 <div className="text-center py-8">
-                  <p className="text-muted-foreground">Belum ada data perilaku untuk tahun {selectedYear}</p>
+                  <p className="text-muted-foreground">Belum ada data perilaku untuk {MONTHS.find(m => m.value === selectedMonth)?.label} {selectedYear}</p>
                 </div>
               ) : (
                 <div className="overflow-x-auto">
@@ -1045,6 +1322,8 @@ export default function SkpBulananPage() {
                   </Table>
                 </div>
               )}
+              
+              {/* Analysis Section for Perilaku - Removed as requested */}
             </CardContent>
           </Card>
         </TabsContent>

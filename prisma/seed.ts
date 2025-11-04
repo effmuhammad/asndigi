@@ -602,43 +602,43 @@ async function main() {
       indicator: 'TERLAKSANANYA PENGOPERASIAN PERAWATAN DAN PERBAIKAN FASILITAS KEAMANAN PENERBANGAN DAN PELAYANAN DARURAT',
       action_plan: 'Terlaksananya kegiatan Menyiapkan dan mengoperasikan peralatan elektronikan penerbangan kategori A',
       target_realization: 'Dokumen',
-      supporting_data: 'https://bit.ly/lapbulTU2025'
+      supporting_data: 'https://bit.ly/laporanKinerjaASN2025'
     },
     {
       indicator: 'TERLAKSANANYA PENGOPERASIAN PERAWATAN DAN PERBAIKAN FASILITAS KEAMANAN PENERBANGAN DAN PELAYANAN DARURAT',
       action_plan: 'Terlaksananya kegiatan pemeliharaan tingkat I peralatan elektronika penerbangan kategori A',
       target_realization: 'Dokumen',
-      supporting_data: 'https://bit.ly/lapbulTU2025'
+      supporting_data: 'https://bit.ly/laporanKinerjaASN2025'
     },
     {
       indicator: 'TERLAKSANANYA PENGOPERASIAN PERAWATAN DAN PERBAIKAN FASILITAS KEAMANAN PENERBANGAN DAN PELAYANAN DARURAT',
       action_plan: 'Terlaksananya kegiatan pemeliharaan tingkat I peralatan elektronika penerbangan kategori C',
       target_realization: 'Dokumen',
-      supporting_data: 'https://bit.ly/lapbulTU2025'
+      supporting_data: 'https://bit.ly/laporanKinerjaASN2025'
     },
     {
       indicator: 'TERLAKSANANYA PENGOPERASIAN PERAWATAN DAN PERBAIKAN FASILITAS KEAMANAN PENERBANGAN DAN PELAYANAN DARURAT',
       action_plan: 'Terlaksananya kegiatan pemeliharaan tingkat II peralatan elektronika penerbangan kategori A',
       target_realization: 'Dokumen',
-      supporting_data: 'https://bit.ly/lapbulTU2025'
+      supporting_data: 'https://bit.ly/laporanKinerjaASN2025'
     },
     {
       indicator: 'TERLAKSANANYA PENGOPERASIAN PERAWATAN DAN PERBAIKAN FASILITAS KEAMANAN PENERBANGAN DAN PELAYANAN DARURAT',
       action_plan: 'Terlaksananya kegiatan pemeliharaan tingkat II peralatan elektronika penerbangan kategori C',
       target_realization: 'Dokumen',
-      supporting_data: 'https://bit.ly/lapbulTU2025'
+      supporting_data: 'https://bit.ly/laporanKinerjaASN2025'
     },
     {
       indicator: 'TERLAKSANANYA PENGOPERASIAN PERAWATAN DAN PERBAIKAN FASILITAS KEAMANAN PENERBANGAN DAN PELAYANAN DARURAT',
       action_plan: 'Terlaksananya kegiatan pemeliharaan tingkat I peralatan elektronika bandara kategori B',
       target_realization: 'Dokumen',
-      supporting_data: 'https://bit.ly/lapbulTU2025'
+      supporting_data: 'https://bit.ly/laporanKinerjaASN2025'
     },
     {
       indicator: 'TERLAKSANANYA EVALUASI DAN PENYUSUNAN LAPORAN KEGIATAN SEKSI TOKPD TERMASUK KEGIATAN KOMITE OPERASIONAL BANDAR UDARA (KEAMANAN DAN KESELAMATAN)',
       action_plan: 'Terlaksananya tugas jaga',
       target_realization: 'Dokumen',
-      supporting_data: 'https://bit.ly/lapbulTU2025'
+      supporting_data: 'https://bit.ly/laporanKinerjaASN2025'
     }
   ]
 
@@ -742,57 +742,51 @@ async function main() {
   // Create SKP Monthly Behavior Entries
   console.log('🎭 Creating SKP monthly behavior entries...')
   
-  // Define behavior data for each user
-  const behaviorData = {
-    [staff1.id]: [
-      {
-        behavior: 'Menunjukkan integritas dalam bekerja',
-        feedback: 'Selalu jujur dan dapat dipercaya dalam menjalankan tugas',
-        behavior_category: 'Integritas',
-        assessment_score: 4,
-        improvement_notes: 'Pertahankan sikap yang baik'
-      },
-      {
-        behavior: 'Bekerja sama dengan tim secara efektif',
-        feedback: 'Aktif berkolaborasi dan membantu rekan kerja',
-        behavior_category: 'Kerjasama',
-        assessment_score: 5,
-        improvement_notes: 'Sangat baik dalam kerjasama tim'
-      }
-    ],
-    [staff2.id]: [
-      {
-        behavior: 'Disiplin dalam menjalankan tugas',
-        feedback: 'Selalu tepat waktu dan mengikuti prosedur yang berlaku',
-        behavior_category: 'Disiplin',
-        assessment_score: 4,
-        improvement_notes: 'Tingkatkan konsistensi kehadiran'
-      },
-      {
-        behavior: 'Menunjukkan komitmen terhadap pelayanan publik',
-        feedback: 'Berorientasi pada kepuasan stakeholder',
-        behavior_category: 'Pelayanan Publik',
-        assessment_score: 4,
-        improvement_notes: 'Terus tingkatkan kualitas pelayanan'
-      }
-    ],
-    [staff3.id]: [
-      {
-        behavior: 'Bertanggung jawab dalam menjalankan tugas',
-        feedback: 'Menyelesaikan tugas dengan penuh tanggung jawab',
-        behavior_category: 'Tanggung Jawab',
-        assessment_score: 4,
-        improvement_notes: 'Pertahankan sikap bertanggung jawab'
-      },
-      {
-        behavior: 'Menunjukkan adaptabilitas terhadap perubahan',
-        feedback: 'Mampu menyesuaikan diri dengan perubahan prosedur',
-        behavior_category: 'Adaptabilitas',
-        assessment_score: 3,
-        improvement_notes: 'Tingkatkan kemampuan adaptasi'
-      }
-    ]
-  }
+  // Define behavior indicators from CSV data - these are monthly indicators that repeat each month
+  const behaviorIndicators = [
+    {
+      behavior: 'Berorientasi Pelayanan:\nMemahami dan memenuhi kebutuhan masyarakat\nRamah, cekatan, solutif, dan dapat diandalkan\nMelakukan perbaikan tiada henti',
+      behavior_category: 'Berorientasi Pelayanan',
+      assessment_score: 4,
+      improvement_notes: 'Pertahankan sikap pelayanan yang baik'
+    },
+    {
+      behavior: 'Akuntabel:\nMelaksanakan tugas dengan jujur bertanggung jawab cermat disiplin dan berintegritas tinggi\nMenggunakan kekayaan dan BMN secara bertanggung jawab efektif dan efisien\nTidak menyalahgunakan kewenangan jabatan',
+      behavior_category: 'Akuntabel',
+      assessment_score: 4,
+      improvement_notes: 'Terus tingkatkan akuntabilitas dalam bekerja'
+    },
+    {
+      behavior: 'Kompeten:\nMeningkatkan kompetensi diri untuk menjawab tantangan yang selalu berubah\nMembantu orang lain belajar\nMelaksanakan tugas dengan kualitas terbaik',
+      behavior_category: 'Kompeten',
+      assessment_score: 4,
+      improvement_notes: 'Terus kembangkan kompetensi profesional'
+    },
+    {
+      behavior: 'Harmonis:\nMenghargai setiap orang apapun latar belakangnya\nSuka menolong orang lain\nMembangun lingkungan kerja yang kondusif',
+      behavior_category: 'Harmonis',
+      assessment_score: 4,
+      improvement_notes: 'Pertahankan hubungan harmonis dengan rekan kerja'
+    },
+    {
+      behavior: 'Loyal:\nMemegang teguh ideologi Pancasila, Undang-Undang Dasar Negara Republik Indonesia Tahun 1945, setia pada\nNKRI serta pemerintahan yang sah\nMenjaga nama baik sesama ASN, Pimpinan, Instansi dan Negara\nMenjaga rahasia jabatan dan negara',
+      behavior_category: 'Loyal',
+      assessment_score: 5,
+      improvement_notes: 'Sangat baik dalam menunjukkan loyalitas'
+    },
+    {
+      behavior: 'Adaptif:\nCepat menyesuaikan diri menghadapi perubahan\nTerus berinovasi dan mengembangkan kreativitas\nBertindak proaktif',
+      behavior_category: 'Adaptif',
+      assessment_score: 4,
+      improvement_notes: 'Tingkatkan kemampuan adaptasi terhadap perubahan'
+    },
+    {
+      behavior: 'Kolaboratif:\nMemberi kesempatan kepada berbagai pihak untuk berkontribusi Terbuka dalam bekerja sama untuk menghasilkan\nnilai tambah Menggerakkan pemanfaatan berbagai sumberdaya untuk tujuan bersama',
+      behavior_category: 'Kolaboratif',
+      assessment_score: 4,
+      improvement_notes: 'Pertahankan semangat kolaborasi yang baik'
+    }
+  ]
 
   // Create behavior entries for all users for January-December 2025
   const behaviorEntries = []
@@ -801,17 +795,45 @@ async function main() {
     const supervisorId = user.id === staff3.id ? supervisor2.id : supervisor1.id
     
     for (const month of months) {
-      const behaviors = behaviorData[user.id]
-      
-      for (let seqNo = 1; seqNo <= behaviors.length; seqNo++) {
-        const behavior = behaviors[seqNo - 1]
+      // Each user gets all 7 behavior indicators each month
+      for (let seqNo = 1; seqNo <= behaviorIndicators.length; seqNo++) {
+        const behaviorIndicator = behaviorIndicators[seqNo - 1]
         
         // Apply same logic as SKP entries: Jan-Sep approved, Oct-Dec draft
         let status: 'APPROVED' | 'SUBMITTED' | 'DRAFT'
+        let feedback: string | null = null
+        
         if (month <= 9) {
           status = 'APPROVED'
+          // Add appropriate feedback for each behavior category for Jan-Sep
+          switch (behaviorIndicator.behavior_category) {
+            case 'Berorientasi Pelayanan':
+              feedback = 'Menunjukkan sikap yang sangat baik dalam melayani masyarakat. Responsif terhadap kebutuhan dan selalu memberikan solusi yang tepat.'
+              break
+            case 'Akuntabel':
+              feedback = 'Melaksanakan tugas dengan penuh tanggung jawab dan integritas. Penggunaan sumber daya sudah efektif dan efisien.'
+              break
+            case 'Kompeten':
+              feedback = 'Terus meningkatkan kemampuan profesional dan aktif membantu rekan kerja dalam pengembangan kompetensi.'
+              break
+            case 'Harmonis':
+              feedback = 'Menciptakan suasana kerja yang kondusif dan menunjukkan sikap menghargai terhadap semua rekan kerja.'
+              break
+            case 'Loyal':
+              feedback = 'Menunjukkan loyalitas yang tinggi terhadap institusi dan negara. Menjaga nama baik organisasi dengan baik.'
+              break
+            case 'Adaptif':
+              feedback = 'Mampu beradaptasi dengan baik terhadap perubahan dan menunjukkan inovasi dalam menyelesaikan tugas.'
+              break
+            case 'Kolaboratif':
+              feedback = 'Aktif berkolaborasi dengan berbagai pihak dan mampu menggerakkan tim untuk mencapai tujuan bersama.'
+              break
+            default:
+              feedback = 'Menunjukkan kinerja yang baik sesuai dengan indikator perilaku yang ditetapkan.'
+          }
         } else {
           status = 'DRAFT'
+          feedback = null // No feedback for remaining months
         }
         
         const entry = await prisma.skpMonthlyBehavior.create({
@@ -820,10 +842,11 @@ async function main() {
             month: month,
             year: 2025,
             sequence_no: seqNo,
-            behavior: behavior.behavior,
-            feedback: behavior.feedback,
-            assessment_score: behavior.assessment_score,
-            improvement_notes: behavior.improvement_notes,
+            behavior: behaviorIndicator.behavior,
+            feedback: feedback,
+            behavior_category: behaviorIndicator.behavior_category,
+            assessment_score: status === 'APPROVED' ? behaviorIndicator.assessment_score : null,
+            improvement_notes: status === 'APPROVED' ? behaviorIndicator.improvement_notes : null,
             status: status,
             created_by: user.id,
             supervisor_id: supervisorId
