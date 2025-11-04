@@ -437,34 +437,88 @@ async function main() {
   const users = [admin, supervisor1, supervisor2, staff1, staff2, staff3]
   const attendanceData = []
   
-  // Create attendance for last 30 days
-  for (let i = 0; i < 30; i++) {
-    const date = new Date()
-    date.setDate(date.getDate() - i)
-    
-    for (const user of users) {
-      const checkIn = new Date(date)
-      checkIn.setHours(8, Math.floor(Math.random() * 30), 0, 0) // 08:00-08:30
-      
-      const checkOut = new Date(date)
-      checkOut.setHours(17, Math.floor(Math.random() * 30), 0, 0) // 17:00-17:30
-      
-      const statuses = ['PRESENT', 'LATE', 'EARLY_LEAVE']
-      const status = i % 10 === 0 ? 'LATE' : (i % 15 === 0 ? 'EARLY_LEAVE' : 'PRESENT')
-      
-      attendanceData.push({
-        user_id: user.id,
-        attendance_date: date,
-        check_in: checkIn,
-        check_out: checkOut,
-        status: status as any,
-        location_data: JSON.stringify({
-          latitude: -6.2088 + (Math.random() - 0.5) * 0.01,
-          longitude: 106.8456 + (Math.random() - 0.5) * 0.01,
-          address: 'Kantor Kementerian Perhubungan'
+  // Create attendance from January 1st to November 2nd (current year) using UTC
+  const currentYear = new Date().getFullYear()
+  const startDate = new Date(Date.UTC(currentYear, 0, 1)) // January 1st UTC
+  const endDate = new Date(Date.UTC(currentYear, 10, 2)) // November 2nd UTC
+  
+  const currentDate = new Date(startDate)
+  
+  while (currentDate <= endDate) {
+    // Skip weekends (Saturday = 6, Sunday = 0)
+    if (currentDate.getDay() !== 0 && currentDate.getDay() !== 6) {
+      for (const user of users) {
+        // Random chance for absence (5% chance)
+        if (Math.random() < 0.05) {
+          continue // Skip this day (absent)
+        }
+        
+        const attendanceDate = new Date(currentDate)
+        
+        // Check-in time: 07:45 - 08:30 (45 minutes range) to create realistic late scenarios
+        const checkInHour = 7
+        const checkInMinute = 45 + Math.floor(Math.random() * 46) // 45-90 minutes (07:45-08:30)
+        
+        // Create check-in time using UTC to avoid timezone issues
+        const checkIn = new Date(Date.UTC(
+          currentDate.getFullYear(),
+          currentDate.getMonth(),
+          currentDate.getDate(),
+          checkInMinute >= 60 ? checkInHour + 1 : checkInHour,
+          checkInMinute >= 60 ? checkInMinute - 60 : checkInMinute,
+          Math.floor(Math.random() * 60)
+        ))
+        
+        // Check-out time: 17:00 - 17:30 (30 minutes range)
+        const checkOutHour = 17
+        const checkOutMinute = Math.floor(Math.random() * 31) // 0-30 minutes (17:00-17:30)
+        const checkOut = new Date(Date.UTC(
+          currentDate.getFullYear(),
+          currentDate.getMonth(),
+          currentDate.getDate(),
+          checkOutHour,
+          checkOutMinute,
+          Math.floor(Math.random() * 60)
+        ))
+        
+        // Determine status based on check-in time and tolerance
+        let status = 'PRESENT'
+        
+        // Create a reference time for work start + tolerance (08:00 + 15 minutes = 08:15) using UTC
+        const workStartWithTolerance = new Date(Date.UTC(
+          currentDate.getFullYear(),
+          currentDate.getMonth(),
+          currentDate.getDate(),
+          8, 15, 0 // 08:15:00 UTC
+        ))
+        
+        // Late if check-in after work start + tolerance
+        if (checkIn > workStartWithTolerance) {
+          status = 'LATE'
+        }
+        
+        // Early leave if check-out before 17:00 (optional, can be uncommented if needed)
+        // if (checkOutHour < 17) {
+        //   status = 'EARLY_LEAVE'
+        // }
+        
+        attendanceData.push({
+          user_id: user.id,
+          attendance_date: attendanceDate,
+          check_in: checkIn,
+          check_out: checkOut,
+          status: status as any,
+          location_data: JSON.stringify({
+            latitude: -6.2088 + (Math.random() - 0.5) * 0.01,
+            longitude: 106.8456 + (Math.random() - 0.5) * 0.01,
+            address: 'Kantor Kementerian Perhubungan'
+          })
         })
-      })
+      }
     }
+    
+    // Move to next day
+    currentDate.setDate(currentDate.getDate() + 1)
   }
   
   await prisma.attendance.createMany({

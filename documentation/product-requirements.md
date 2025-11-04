@@ -12,11 +12,11 @@ Penilaian ASN sangat berpengaruh dalam pembayaran Tunjangan Kinerja
 Atasan Langsung : Target Kinerja serta pemenuhan tupoksi yang bisa dilakukan secara periodik bisa harian, mingguan, bulanan , triwulan, catur wulan, semester atau tahunan
 
 ### Bobot Penilaian 
-Bagian Kepegawaian (40%)= Telat masuk (10%), Tidak Hadir (15%), Kedisiplinan (15%)
+Bagian Kepegawaian (40%)= Terlambat masuk (10%), Tidak Hadir (15%), Kedisiplinan (15%)
 Atasan langsung (60%)= Predikat Kinerja Pegawai (50%) dan ketepatan waktu mengirimkan laporan (10%)
 
 ### Bagian Kepegawaian
-1. Telat masuk :  0-25 menit =(-) 2,5% , 31-60= (-) 5%, 61-90= (-) 7,5%, 91-120= (-) 10% , 
+1. Terlambat masuk :  0-25 menit =(-) 2,5% , 31-60= (-) 5%, 61-90= (-) 7,5%, 91-120= (-) 10% , 
 > Seterusnya hingga maksimal terpotong 10%
 2. Tidak Hadir : yaitu tanpa ada keterangan bukan karena sakit, cuti atau izin yang telah disetujui oleh pejabat penilai dan PPK.  
 > 1 hari tidak hadir terpotong 3% dengan maksimal terpotong yaitu 15%
@@ -34,7 +34,7 @@ Atasan langsung (60%)= Predikat Kinerja Pegawai (50%) dan ketepatan waktu mengir
 
 2. Ketepatan waktu pengiriman laporan:
 - jika tepat waktu nilai 10%, 
-- jika telat 1 hari kerja dikurangi 2%
+- jika terlambat 1 hari kerja dikurangi 2%
 > Seterusnya sampai terpotong maksimal 10%
 
 ## Laporan Akhir Kinerja

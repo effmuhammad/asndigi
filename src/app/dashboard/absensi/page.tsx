@@ -48,6 +48,22 @@ interface AiSummaryData {
   summary: AttendanceSummaryResponse
 }
 
+interface TukinCalculation {
+  month: number
+  year: number
+  period: string
+  totalLateMinutes: number
+  totalAbsentDays: number
+  violationType: 'ringan' | 'sedang' | 'berat' | 'tidak ada'
+  tukinScore: number
+  breakdown: {
+    lateAddition: number
+    absentAddition: number
+    disciplineAddition: number
+    totalAddition: number
+  }
+}
+
 export default function PresensiPage() {
   const { data: session } = useSession()
   const [currentTime, setCurrentTime] = useState(new Date())
@@ -66,13 +82,27 @@ export default function PresensiPage() {
     late_tolerance_minutes: number
   } | null>(null)
 
+  // Helper function to format time from database without timezone conversion
+  const formatTimeFromDatabase = (timeString: string): string => {
+    // Parse the datetime string and extract just the time part
+    const date = new Date(timeString)
+    // Use UTC methods to avoid timezone conversion
+    const hours = date.getUTCHours().toString().padStart(2, '0')
+    const minutes = date.getUTCMinutes().toString().padStart(2, '0')
+    const seconds = date.getUTCSeconds().toString().padStart(2, '0')
+    return `${hours}:${minutes}:${seconds}`
+  }
+
   // AI Summary states
   const [aiSummary, setAiSummary] = useState<AiSummaryData | null>(null)
   const [isGeneratingSummary, setIsGeneratingSummary] = useState(false)
   const [showAiSummary, setShowAiSummary] = useState(false)
-  const [selectedMonth, setSelectedMonth] = useState(() => {
-    const now = new Date()
-    return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`
+
+  // Tukin Calculation states
+  const [tukinCalculation, setTukinCalculation] = useState<TukinCalculation | null>(null)
+  const [isLoadingTukin, setIsLoadingTukin] = useState(false)
+  const [selectedTukinMonth, setSelectedTukinMonth] = useState(() => {
+    return `2025-10`
   })
 
   // Update current time every second
@@ -223,7 +253,13 @@ export default function PresensiPage() {
     loadTodayAttendance()
     loadAttendanceHistory()
     loadWorkSettings()
+    loadTukinCalculation()
   }, [])
+
+  // Load tukin calculation when month changes
+  useEffect(() => {
+    loadTukinCalculation()
+  }, [selectedTukinMonth])
 
   const loadWorkSettings = async () => {
     try {
@@ -234,6 +270,45 @@ export default function PresensiPage() {
       }
     } catch (error) {
       console.error('Error loading work settings:', error)
+    }
+  }
+
+  const loadTukinCalculation = async () => {
+    if (!session?.user) return
+    
+    setIsLoadingTukin(true)
+    try {
+      // Validate selectedTukinMonth format
+      if (!selectedTukinMonth || !selectedTukinMonth.includes('-')) {
+        console.error('Invalid selectedTukinMonth format:', selectedTukinMonth)
+        setTukinCalculation(null)
+        return
+      }
+      
+      const [year, month] = selectedTukinMonth.split('-')
+      
+      // Validate year and month
+      if (!year || !month || isNaN(parseInt(year)) || isNaN(parseInt(month))) {
+        console.error('Invalid year or month:', { year, month })
+        setTukinCalculation(null)
+        return
+      }
+      
+      const response = await fetch(`/api/attendance/tukin-calculation?month=${month}&year=${year}`)
+      
+      if (response.ok) {
+        const data = await response.json()
+        setTukinCalculation(data.data)
+      } else {
+        const errorData = await response.json().catch(() => ({ error: 'Unknown error' }))
+        console.error('Failed to load tukin calculation:', response.status, errorData)
+        setTukinCalculation(null)
+      }
+    } catch (error) {
+      console.error('Error loading tukin calculation:', error)
+      setTukinCalculation(null)
+    } finally {
+      setIsLoadingTukin(false)
     }
   }
 
@@ -273,8 +348,8 @@ export default function PresensiPage() {
           const formattedHistory = data.attendance.map((record: any) => ({
             id: record.id,
             date: new Date(record.attendance_date).toLocaleDateString("id-ID"),
-            checkIn: record.check_in ? new Date(record.check_in).toLocaleTimeString("id-ID") : null,
-            checkOut: record.check_out ? new Date(record.check_out).toLocaleTimeString("id-ID") : null,
+            checkIn: record.check_in ? formatTimeFromDatabase(record.check_in) : null,
+            checkOut: record.check_out ? formatTimeFromDatabase(record.check_out) : null,
             status: record.status === "PRESENT" ? "hadir" : record.status === "LATE" ? "terlambat" : "alpha",
             location: {
               latitude: record.location_data?.latitude,
@@ -306,7 +381,7 @@ export default function PresensiPage() {
 
     setIsGeneratingSummary(true)
     try {
-      const [year, month] = selectedMonth.split('-')
+      const [year, month] = selectedTukinMonth.split('-')
       
       const response = await fetch('/api/attendance/ai-summary', {
         method: 'POST',
@@ -382,9 +457,11 @@ export default function PresensiPage() {
           "Content-Type": "application/json"
         },
         body: JSON.stringify({
-          type: "check_in",
-          latitude: location.lat,
-          longitude: location.lng,
+          action: "check-in",
+          location_data: {
+            latitude: location.lat,
+            longitude: location.lng
+          },
           photo_url: supabasePhotoUrl
         })
       })
@@ -436,9 +513,11 @@ export default function PresensiPage() {
           "Content-Type": "application/json"
         },
         body: JSON.stringify({
-          type: "check_out",
-          latitude: location.lat,
-          longitude: location.lng
+          action: "check-out",
+          location_data: {
+            latitude: location.lat,
+            longitude: location.lng
+          }
         })
       })
 
@@ -479,146 +558,12 @@ export default function PresensiPage() {
         </div>
         
         <div className="flex items-center space-x-2">
-          <label htmlFor="month-select" className="text-sm font-medium">
-            Pilih Periode:
-          </label>
-          <input
-            id="month-select"
-            type="month"
-            value={selectedMonth}
-            onChange={(e) => setSelectedMonth(e.target.value)}
-            className="px-3 py-2 border rounded-md text-sm"
-          />
-          <Button
-            onClick={generateAiSummary}
-            disabled={isGeneratingSummary}
-            className="flex items-center gap-2"
-          >
-            {isGeneratingSummary ? (
-              <>
-                <Loader2 className="h-4 w-4 animate-spin" />
-                Menganalisis...
-              </>
-            ) : (
-              <>
-                <Brain className="h-4 w-4" />
-                Buat Ringkasan AI
-              </>
-            )}
-          </Button>
+          
+
         </div>
       </div>
 
-      {/* AI Summary - Only show when generated */}
-      {showAiSummary && aiSummary && (
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <Brain className="h-5 w-5 text-blue-600" />
-              Ringkasan AI Presensi
-            </CardTitle>
-            <CardDescription>
-              Analisis kehadiran menggunakan AI untuk periode yang dipilih
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            <div className="space-y-6">
-              {/* Header */}
-              <div className="bg-gradient-to-r from-blue-50 to-indigo-50 p-4 rounded-lg border">
-                <h3 className="font-semibold text-lg text-gray-900">
-                  Ringkasan Presensi - {aiSummary.user.name}
-                </h3>
-                <p className="text-sm text-gray-600">
-                  NIP: {aiSummary.user.nip} • Periode: {aiSummary.period}
-                </p>
-                <div className="mt-2">
-                  <div className="flex items-center gap-2">
-                    <span className="text-sm font-medium">Skor Kinerja:</span>
-                    <Badge 
-                      variant={aiSummary.summary.performance_score >= 80 ? "default" : 
-                              aiSummary.summary.performance_score >= 60 ? "secondary" : "destructive"}
-                      className="text-sm"
-                    >
-                      {aiSummary.summary.performance_score}/100
-                    </Badge>
-                  </div>
-                </div>
-              </div>
-
-              {/* Executive Summary */}
-              <div className="space-y-2">
-                <h4 className="font-semibold text-gray-900">Ringkasan Eksekutif</h4>
-                <p className="text-sm text-gray-700 leading-relaxed">
-                  {aiSummary.summary.executive_summary}
-                </p>
-              </div>
-
-              {/* Attendance Analysis */}
-              <div className="space-y-3">
-                <h4 className="font-semibold text-gray-900">Analisis Kehadiran</h4>
-                <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                  <div className="bg-green-50 p-3 rounded-lg border border-green-200">
-                    <div className="text-2xl font-bold text-green-700">
-                      {aiSummary.summary.attendance_analysis.present_days}
-                    </div>
-                    <div className="text-xs text-green-600">Hari Hadir</div>
-                  </div>
-                  <div className="bg-yellow-50 p-3 rounded-lg border border-yellow-200">
-                    <div className="text-2xl font-bold text-yellow-700">
-                      {aiSummary.summary.attendance_analysis.late_days}
-                    </div>
-                    <div className="text-xs text-yellow-600">Hari Terlambat</div>
-                  </div>
-                  <div className="bg-red-50 p-3 rounded-lg border border-red-200">
-                    <div className="text-2xl font-bold text-red-700">
-                      {aiSummary.summary.attendance_analysis.absent_days}
-                    </div>
-                    <div className="text-xs text-red-600">Hari Tidak Hadir</div>
-                  </div>
-                  <div className="bg-blue-50 p-3 rounded-lg border border-blue-200">
-                    <div className="text-2xl font-bold text-blue-700">
-                      {aiSummary.summary.attendance_analysis.attendance_rate.toFixed(1)}%
-                    </div>
-                    <div className="text-xs text-blue-600">Tingkat Kehadiran</div>
-                  </div>
-                </div>
-              </div>
-
-              {/* Patterns & Insights */}
-              {aiSummary.summary.patterns_insights.length > 0 && (
-                <div className="space-y-2">
-                  <h4 className="font-semibold text-gray-900">Pola & Wawasan</h4>
-                  <ul className="space-y-1">
-                    {aiSummary.summary.patterns_insights.map((insight, index) => (
-                      <li key={index} className="text-sm text-gray-700 flex items-start gap-2">
-                        <span className="text-blue-500 mt-1">•</span>
-                        <span>{insight}</span>
-                      </li>
-                    ))}
-                  </ul>
-                </div>
-              )}
-
-              {/* Recommendations */}
-              {aiSummary.summary.recommendations.length > 0 && (
-                <div className="space-y-2">
-                  <h4 className="font-semibold text-gray-900">Rekomendasi</h4>
-                  <ul className="space-y-1">
-                    {aiSummary.summary.recommendations.map((recommendation, index) => (
-                      <li key={index} className="text-sm text-gray-700 flex items-start gap-2">
-                        <span className="text-green-500 mt-1">✓</span>
-                        <span>{recommendation}</span>
-                      </li>
-                    ))}
-                  </ul>
-                </div>
-              )}
-            </div>
-          </CardContent>
-        </Card>
-      )}
-
-      {/* Combined Status Card */}
+      {/* Attendance History */}
       <Card>
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
@@ -650,13 +595,10 @@ export default function PresensiPage() {
                 <span>Masuk: {workSettings.work_start_time}</span>
                 <span>Pulang: {workSettings.work_end_time}</span>
               </div>
-              {workSettings.late_tolerance_minutes > 0 && (
-                <div className="text-xs text-blue-600 mt-1">
-                  Toleransi keterlambatan: {workSettings.late_tolerance_minutes} menit
-                </div>
-              )}
             </div>
           )}
+
+
 
           <Separator />
 
@@ -666,14 +608,14 @@ export default function PresensiPage() {
               <div className="flex items-center justify-between">
                 <span className="text-sm">Presensi Masuk:</span>
                 <Badge variant="secondary">
-                  {todayAttendance.checkIn ? new Date(todayAttendance.checkIn).toLocaleTimeString("id-ID") : "-"}
+                  {todayAttendance.checkIn ? formatTimeFromDatabase(todayAttendance.checkIn) : "-"}
                 </Badge>
               </div>
               {todayAttendance.checkOut && (
                 <div className="flex items-center justify-between">
                   <span className="text-sm">Presensi Keluar:</span>
                   <Badge variant="secondary">
-                    {new Date(todayAttendance.checkOut).toLocaleTimeString("id-ID")}
+                    {formatTimeFromDatabase(todayAttendance.checkOut)}
                   </Badge>
                 </div>
               )}
@@ -821,6 +763,297 @@ export default function PresensiPage() {
         </CardContent>
       </Card>
 
+      {/* Tukin Calculation Table */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <AlertCircle className="w-5 h-5" />
+            Perhitungan Tukin Presensi
+          </CardTitle>
+          <CardDescription>
+            Perhitungan potongan Tukin berdasarkan keterlambatan, ketidakhadiran, dan pelanggaran disiplin
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          {/* Month Selector */}
+          <div className="flex items-center gap-2">
+            <label htmlFor="tukin-month" className="text-sm font-medium">
+              Pilih Bulan:
+            </label>
+            <select
+              id="tukin-month"
+              value={selectedTukinMonth}
+              onChange={(e) => setSelectedTukinMonth(e.target.value)}
+              className="px-3 py-1 border rounded-md text-sm"
+            >
+              {Array.from({ length: 12 }, (_, i) => {
+                const month = i + 1;
+                const currentYear = new Date().getFullYear();
+                const date = new Date(currentYear, i, 1);
+                const value = `${currentYear}-${month.toString().padStart(2, '0')}`;
+                return (
+                  <option key={month} value={value}>
+                    {date.toLocaleDateString('id-ID', { month: 'long', year: 'numeric' })}
+                  </option>
+                );
+              })}
+            </select>
+            
+          </div>
+
+          {/* Loading State */}
+          {isLoadingTukin && (
+            <div className="flex items-center justify-center py-8">
+              <Loader2 className="h-6 w-6 animate-spin mr-2" />
+              <span>Memuat data perhitungan...</span>
+            </div>
+          )}
+
+          {/* Calculation Results */}
+          {!isLoadingTukin && tukinCalculation && (
+            <div className="space-y-4">
+              {/* Calculation Table */}
+              <div className="border rounded-lg overflow-hidden">
+                <table className="w-full">
+                  <thead className="bg-gray-50">
+                    <tr>
+                      <th className="px-4 py-3 text-left text-sm font-medium text-gray-900">
+                        Komponen
+                      </th>
+                      <th className="px-4 py-3 text-left text-sm font-medium text-gray-900">
+                        Nilai
+                      </th>
+                      <th className="px-4 py-3 text-left text-sm font-medium text-gray-900">
+                        Penambahan
+                      </th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-gray-200">
+                    <tr>
+                      <td className="px-4 py-3 text-sm text-gray-900">
+                        Total Waktu Terlambat
+                      </td>
+                      <td className="px-4 py-3 text-sm text-gray-600">
+                        {tukinCalculation.totalLateMinutes} menit
+                      </td>
+                      <td className="px-4 py-3 text-sm text-green-600">
+                        +{tukinCalculation.breakdown.lateAddition}%
+                      </td>
+                    </tr>
+                    <tr>
+                      <td className="px-4 py-3 text-sm text-gray-900">
+                        Total Hari Tidak Hadir
+                      </td>
+                      <td className="px-4 py-3 text-sm text-gray-600">
+                        {tukinCalculation.totalAbsentDays} hari
+                      </td>
+                      <td className="px-4 py-3 text-sm text-green-600">
+                        +{tukinCalculation.breakdown.absentAddition}%
+                      </td>
+                    </tr>
+                    <tr>
+                      <td className="px-4 py-3 text-sm text-gray-900">
+                        Jenis Pelanggaran Disiplin
+                      </td>
+                      <td className="px-4 py-3 text-sm text-gray-600">
+                        <Badge variant={
+                          tukinCalculation.violationType === 'tidak ada' ? 'default' :
+                          tukinCalculation.violationType === 'ringan' ? 'secondary' :
+                          tukinCalculation.violationType === 'sedang' ? 'destructive' :
+                          'destructive'
+                        }>
+                          {tukinCalculation.violationType.charAt(0).toUpperCase() + tukinCalculation.violationType.slice(1)}
+                        </Badge>
+                      </td>
+                      <td className="px-4 py-3 text-sm text-green-600">
+                        +{tukinCalculation.breakdown.disciplineAddition}%
+                      </td>
+                    </tr>
+                    <tr className="bg-gray-50">
+                      <td className="px-4 py-3 text-sm font-medium text-gray-900">
+                        Total Penambahan Tukin
+                      </td>
+                      <td className="px-4 py-3 text-sm text-gray-600">
+                        -
+                      </td>
+                      <td className="px-4 py-3 text-sm font-bold text-green-600">
+                        +{tukinCalculation.breakdown.totalAddition}%
+                      </td>
+                    </tr>
+                    <tr className="bg-green-50">
+                      <td className="px-4 py-3 text-sm font-medium text-green-800">
+                        Total Skor Tukin Presensi
+                      </td>
+                      <td className="px-4 py-3 text-sm text-green-700">
+                        -
+                      </td>
+                      <td className="px-4 py-3 text-sm font-bold text-green-700">
+                        {tukinCalculation.tukinScore}%
+                      </td>
+                    </tr>
+                  </tbody>
+                </table>
+              </div>
+
+              {/* Calculation Rules */}
+              <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4">
+                <h4 className="font-medium text-yellow-800 mb-2">Ketentuan Perhitungan</h4>
+                <div className="text-sm text-yellow-700 space-y-2">
+                  <div>
+                    <p><strong>Terlambat Masuk (Bulanan):</strong></p>
+                    <p className="ml-4">• 0 menit = 10%</p>
+                    <p className="ml-4">• 0-25 menit = 7.5%</p>
+                    <p className="ml-4">• 25-50 menit = 5%</p>
+                    <p className="ml-4">• 50-75 menit = 2.5%</p>
+                    <p className="ml-4">• &gt;75 menit = 0%</p>
+                  </div>
+                  <div>
+                    <p><strong>Tidak Hadir (Bulanan):</strong></p>
+                    <p className="ml-4">• 0 hari = 15%</p>
+                    <p className="ml-4">• 1 hari atau lebih = 0%</p>
+                  </div>
+                  <div>
+                    <p><strong>Pelanggaran Disiplin:</strong></p>
+                    <p className="ml-4">• Tidak ada hukuman = 15%</p>
+                    <p className="ml-4">• Hukuman ringan = 0% (1 bulan)</p>
+                    <p className="ml-4">• Hukuman sedang = 0% (2 bulan)</p>
+                    <p className="ml-4">• Hukuman berat = 0% (3 bulan)</p>
+                  </div>
+                  <p><strong>Total Persentase Tukin Presensi:</strong> Maksimal 40% (10% + 15% + 15%)</p>
+                </div>
+              </div>
+
+              {/* Modern AI Analysis Button with Description - Only show when AI summary is not generated */}
+                <div className="flex items-center gap-6 p-6 bg-gradient-to-r from-blue-50 to-indigo-50 rounded-xl border border-blue-100">
+                  <Button
+                    onClick={generateAiSummary}
+                    disabled={isGeneratingSummary}
+                    className="flex items-center gap-3 px-6 py-3 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white font-semibold rounded-lg shadow-lg hover:shadow-xl transition-all duration-300 transform hover:scale-105 disabled:opacity-50 disabled:cursor-not-allowed disabled:transform-none"
+                  >
+                    {isGeneratingSummary ? (
+                      <>
+                        <Loader2 className="h-5 w-5 animate-spin" />
+                        Menganalisis...
+                      </>
+                    ) : (
+                      <>
+                        <Brain className="h-5 w-5" />
+                        Analisis AI Presensi
+                      </>
+                    )}
+                  </Button>
+                  
+                  <div className="flex-1">
+                    <h4 className="font-semibold text-gray-900 mb-1">Analisis Cerdas</h4>
+                    <p className="text-sm text-gray-600 leading-relaxed">
+                      Analisis cerdas pola presensi dan rekomendasi untuk meningkatkan produktifitas kerja
+                    </p>
+                  </div>
+                </div>
+
+              {/* AI Summary for Tukin Analysis - Only show when generated */}
+              {showAiSummary && aiSummary && (
+                <div className="border-t pt-4">
+                  <div className="space-y-4">
+                    <div className="flex items-center gap-2 mb-4">
+                      <Brain className="h-5 w-5 text-blue-600" />
+                      <h3 className="font-semibold text-lg">Analisis AI Presensi</h3>
+                    </div>
+
+                    {/* Header */}
+                    <div className="bg-gradient-to-r from-blue-50 to-indigo-50 p-4 rounded-lg border">
+                      <h4 className="font-semibold text-gray-900">
+                        Ringkasan Presensi - {aiSummary.user.name}
+                      </h4>
+                      <p className="text-sm text-gray-600">
+                        NIP: {aiSummary.user.nip} • Periode: {aiSummary.period}
+                      </p>
+                    </div>
+
+                    {/* Executive Summary */}
+                    <div className="space-y-2">
+                      <h4 className="font-semibold text-gray-900">Ringkasan Eksekutif</h4>
+                      <p className="text-sm text-gray-700 leading-relaxed">
+                        {aiSummary.summary.executive_summary}
+                      </p>
+                    </div>
+
+                    {/* Attendance Analysis */}
+                    <div className="space-y-3">
+                      <h4 className="font-semibold text-gray-900">Analisis Kehadiran</h4>
+                      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                        <div className="bg-green-50 p-3 rounded-lg border border-green-200">
+                          <div className="text-2xl font-bold text-green-700">
+                            {aiSummary.summary.attendance_analysis.present_days}
+                          </div>
+                          <div className="text-xs text-green-600">Hari Hadir</div>
+                        </div>
+                        <div className="bg-yellow-50 p-3 rounded-lg border border-yellow-200">
+                          <div className="text-2xl font-bold text-yellow-700">
+                            {aiSummary.summary.attendance_analysis.late_days}
+                          </div>
+                          <div className="text-xs text-yellow-600">Hari Terlambat</div>
+                        </div>
+                        <div className="bg-red-50 p-3 rounded-lg border border-red-200">
+                          <div className="text-2xl font-bold text-red-700">
+                            {aiSummary.summary.attendance_analysis.absent_days}
+                          </div>
+                          <div className="text-xs text-red-600">Hari Tidak Hadir</div>
+                        </div>
+                        <div className="bg-blue-50 p-3 rounded-lg border border-blue-200">
+                          <div className="text-2xl font-bold text-blue-700">
+                            {aiSummary.summary.attendance_analysis.attendance_rate.toFixed(1)}%
+                          </div>
+                          <div className="text-xs text-blue-600">Tingkat Kehadiran</div>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Patterns & Insights */}
+                    {aiSummary.summary.patterns_insights.length > 0 && (
+                      <div className="space-y-2">
+                        <h4 className="font-semibold text-gray-900">Pola & Wawasan</h4>
+                        <ul className="space-y-1">
+                          {aiSummary.summary.patterns_insights.map((insight, index) => (
+                            <li key={index} className="text-sm text-gray-700 flex items-start gap-2">
+                              <span className="text-blue-500">•</span>
+                              <span>{insight}</span>
+                            </li>
+                          ))}
+                        </ul>
+                      </div>
+                    )}
+
+                    {/* Recommendations */}
+                    {aiSummary.summary.recommendations.length > 0 && (
+                      <div className="space-y-2">
+                        <h4 className="font-semibold text-gray-900">Rekomendasi untuk Perbaikan Tukin</h4>
+                        <ul className="space-y-1">
+                          {aiSummary.summary.recommendations.map((recommendation, index) => (
+                            <li key={index} className="text-sm text-gray-700 flex items-start gap-2">
+                              <span className="text-green-500">✓</span>
+                              <span>{recommendation}</span>
+                            </li>
+                          ))}
+                        </ul>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* No Data State */}
+          {!isLoadingTukin && !tukinCalculation && (
+            <div className="text-center text-muted-foreground py-8">
+              <AlertCircle className="h-8 w-8 mx-auto mb-2" />
+              <p>Tidak ada data perhitungan untuk periode yang dipilih</p>
+            </div>
+          )}
+        </CardContent>
+      </Card>
+
       {/* Attendance History */}
       <Card>
         <CardHeader>
@@ -828,34 +1061,66 @@ export default function PresensiPage() {
           <CardDescription>10 data presensi terakhir</CardDescription>
         </CardHeader>
         <CardContent>
-          <div className="space-y-4">
-            {attendanceHistory.length > 0 ? (
-              attendanceHistory.map((record) => (
-                <div key={record.id} className="flex items-center justify-between p-4 border rounded-lg">
-                  <div className="space-y-1">
-                    <div className="font-medium">{record.date}</div>
-                    <div className="text-sm text-muted-foreground">
-                      {record.checkIn && `Masuk: ${record.checkIn}`}
-                      {record.checkIn && record.checkOut && " • "}
-                      {record.checkOut && `Keluar: ${record.checkOut}`}
-                    </div>
-                    {record.location && (
-                      <div className="text-xs text-muted-foreground">
-                        📍 {record.location.address}
-                      </div>
-                    )}
-                  </div>
-                  <div>
-                    {getStatusBadge(record.status)}
-                  </div>
-                </div>
-              ))
-            ) : (
-              <div className="text-center text-muted-foreground py-8">
-                Belum ada riwayat presensi
-              </div>
-            )}
-          </div>
+          {attendanceHistory.length > 0 ? (
+            <div className="border rounded-lg overflow-hidden">
+              <table className="w-full">
+                <thead className="bg-gray-50">
+                  <tr>
+                    <th className="px-4 py-3 text-left text-sm font-medium text-gray-900">
+                      Tanggal
+                    </th>
+                    <th className="px-4 py-3 text-left text-sm font-medium text-gray-900">
+                      Jam Masuk
+                    </th>
+                    <th className="px-4 py-3 text-left text-sm font-medium text-gray-900">
+                      Jam Keluar
+                    </th>
+                    <th className="px-4 py-3 text-left text-sm font-medium text-gray-900">
+                      Status
+                    </th>
+                    <th className="px-4 py-3 text-left text-sm font-medium text-gray-900">
+                      Lokasi
+                    </th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-gray-200">
+                  {attendanceHistory.map((record) => (
+                    <tr key={record.id} className="hover:bg-gray-50">
+                      <td className="px-4 py-3 text-sm font-medium text-gray-900">
+                        {record.date}
+                      </td>
+                      <td className="px-4 py-3 text-sm text-gray-600">
+                        {record.checkIn || '-'}
+                      </td>
+                      <td className="px-4 py-3 text-sm text-gray-600">
+                        {record.checkOut || '-'}
+                      </td>
+                      <td className="px-4 py-3 text-sm">
+                        {getStatusBadge(record.status)}
+                      </td>
+                      <td className="px-4 py-3 text-sm text-gray-600">
+                        {record.location?.address ? (
+                          <div className="flex items-center gap-1">
+                            <MapPin className="h-3 w-3" />
+                            <span className="truncate max-w-[200px]" title={record.location.address}>
+                              {record.location.address}
+                            </span>
+                          </div>
+                        ) : (
+                          '-'
+                        )}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          ) : (
+            <div className="text-center text-muted-foreground py-8">
+              <AlertCircle className="h-8 w-8 mx-auto mb-2" />
+              <p>Belum ada riwayat presensi</p>
+            </div>
+          )}
         </CardContent>
       </Card>
     </div>
