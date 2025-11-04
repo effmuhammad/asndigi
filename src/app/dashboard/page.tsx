@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation"
 import { useEffect } from "react"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
-import { Calendar, Home, Clock, ClipboardCheck, Users, UserCog } from "lucide-react"
+import { Calendar, Home, Clock, ClipboardCheck, Users, UserCog, Share2 } from "lucide-react"
 
 export default function DashboardPage() {
   const { data: session, status } = useSession()
@@ -40,10 +40,15 @@ export default function DashboardPage() {
       icon: ClipboardCheck,
     },
     {
-      title: "Profil ASN",
-      url: "/dashboard/profile",
-      icon: Users,
-    },
+    title: "Profil ASN",
+    url: "/dashboard/profile",
+    icon: Users,
+  },
+  {
+    title: "Integrasi",
+    url: "/dashboard/integrasi",
+    icon: Share2,
+  },
   ]
 
   // Menu items khusus untuk Admin

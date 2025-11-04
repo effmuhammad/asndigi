@@ -1,7 +1,7 @@
 "use client"
 
 import Image from "next/image"
-import { Calendar, Home, Users, Clock, ClipboardCheck, UserCog } from "lucide-react"
+import { Calendar, Home, Users, Clock, ClipboardCheck, UserCog, Share2 } from "lucide-react"
 import { useSession } from "next-auth/react"
 import { usePathname } from "next/navigation"
 
@@ -50,6 +50,11 @@ const items = [
     title: "Profil ASN",
     url: "/dashboard/profile",
     icon: Users,
+  },
+  {
+    title: "Integrasi",
+    url: "/dashboard/integrasi",
+    icon: Share2,
   },
 ]
 
